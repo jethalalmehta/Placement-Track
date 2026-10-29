@@ -32,8 +32,17 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'placement-tracker-btech-cse-secret-key-2026')
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'uploads', 'resumes')
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+upload_dir = os.environ.get('UPLOAD_FOLDER')
+if not upload_dir:
+    if os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
+        upload_dir = '/tmp/uploads/resumes'
+    else:
+        upload_dir = os.path.join(app.root_path, 'uploads', 'resumes')
+app.config['UPLOAD_FOLDER'] = upload_dir
+try:
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+except OSError:
+    pass
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB
 
 CATEGORIES = [
@@ -3094,7 +3103,10 @@ def analytics_charts():
     })
 
 # Initialize DB on startup
-init_db()
+try:
+    init_db()
+except Exception as e:
+    app.logger.warning(f"Database initialization notice on startup: {e}")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))

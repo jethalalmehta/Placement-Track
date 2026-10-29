@@ -8,6 +8,7 @@ if os.path.isdir(_vendor_dir) and _vendor_dir not in sys.path:
 
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date, timedelta
+import shutil
 
 DB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance')
 DEFAULT_DB_PATH = os.path.join(DB_DIR, 'placement.db')
@@ -15,13 +16,29 @@ DEFAULT_DB_PATH = os.path.join(DB_DIR, 'placement.db')
 def get_db_path(custom_path=None):
     if custom_path:
         return custom_path
-    return os.environ.get('DATABASE_PATH', DEFAULT_DB_PATH)
+    env_path = os.environ.get('DATABASE_PATH')
+    if env_path:
+        return env_path
+    if os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
+        tmp_db = '/tmp/placement.db'
+        if not os.path.exists(tmp_db):
+            bundled = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'placement.db')
+            if os.path.exists(bundled):
+                try:
+                    shutil.copyfile(bundled, tmp_db)
+                except Exception:
+                    pass
+        return tmp_db
+    return DEFAULT_DB_PATH
 
 def ensure_db_dir(db_path=None):
     target = get_db_path(db_path)
     parent = os.path.dirname(os.path.abspath(target))
     if parent:
-        os.makedirs(parent, exist_ok=True)
+        try:
+            os.makedirs(parent, exist_ok=True)
+        except OSError:
+            pass
 
 def get_db_connection(db_path=None):
     target = get_db_path(db_path)
