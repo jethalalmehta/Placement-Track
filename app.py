@@ -32,6 +32,13 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'placement-tracker-btech-cse-secret-key-2026')
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_PATH'] = '/'
+if os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
+    app.config['SESSION_COOKIE_SECURE'] = True
+else:
+    app.config['SESSION_COOKIE_SECURE'] = False
+from datetime import timedelta
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=14)
 upload_dir = os.environ.get('UPLOAD_FOLDER')
 if not upload_dir:
     if os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
@@ -199,7 +206,18 @@ def custom_url_for(endpoint, **values):
         return flask_url_for(endpoint, **values)
     url = flask_url_for(endpoint, **values)
     tok = getattr(g, 'auth_token', None)
-    if tok and endpoint not in ('login', 'register'):
+    if not tok and getattr(g, 'user', None):
+        try:
+            tok = get_serializer().dumps({
+                'uid': g.user['id'],
+                'sid': session.get('session_id') or ('sid_' + str(g.user['id'])),
+                'csrf': session.get('csrf_token') or getattr(g, 'csrf_token', ''),
+                'is_demo': session.get('is_demo', False)
+            })
+            g.auth_token = tok
+        except Exception:
+            pass
+    if tok and endpoint not in ('login', 'register', 'logout'):
         return append_token_to_url(url, tok)
     return url
 
@@ -291,6 +309,17 @@ def before_request():
         )
         u_row = cursor.fetchone()
 
+        # If user record is missing by ID (e.g. cold start with autoincrement ID change), look up by email:
+        if not u_row and session.get('user_email'):
+            cursor.execute(
+                'SELECT id, student_id, name, email, COALESCE(role, "student") as role, phone FROM users WHERE LOWER(email) = LOWER(?)',
+                (session['user_email'],)
+            )
+            u_row = cursor.fetchone()
+            if u_row:
+                user_id = u_row['id']
+                session['user_id'] = user_id
+
         # Seamless Serverless / Cold Start Self-Healing for Demo Account:
         # If user record is missing in a fresh container instance and session is marked as demo,
         # seed the demo student immediately so navigation is never broken.
@@ -305,6 +334,9 @@ def before_request():
                 if u_row:
                     user_id = u_row['id']
                     session['user_id'] = user_id
+                    session['is_demo'] = True
+                    session['user_email'] = 'demo.student@university.edu'
+                    is_demo = True
             except Exception as e:
                 app.logger.warning(f"Auto-seed demo student on cold start: {e}")
 
@@ -354,19 +386,36 @@ def after_request(response):
     if is_https and 'Set-Cookie' in response.headers:
         cookies = response.headers.getlist('Set-Cookie')
         response.headers.pop('Set-Cookie', None)
-        is_iframe = request.headers.get('Sec-Fetch-Dest') == 'iframe' or request.args.get('in_iframe') == '1'
+        is_cross_site = (
+            request.headers.get('Sec-Fetch-Site') == 'cross-site'
+            or request.headers.get('Sec-Fetch-Dest') == 'iframe'
+            or request.args.get('in_iframe') == '1'
+            or session.get('is_iframe')
+        )
+        if request.args.get('in_iframe') == '1':
+            session['is_iframe'] = True
+
         for cookie in cookies:
-            if is_iframe:
+            if is_cross_site:
+                # In cross-site iframe context, SameSite=None; Secure; Partitioned is required
                 if 'SameSite=Lax' in cookie:
-                    cookie = cookie.replace('SameSite=Lax', 'SameSite=None; Secure; Partitioned')
+                    cookie = cookie.replace('SameSite=Lax', 'SameSite=None')
                 elif 'SameSite=' not in cookie:
-                    cookie = f"{cookie}; SameSite=None; Secure; Partitioned"
+                    cookie = f"{cookie}; SameSite=None"
+                if 'Secure' not in cookie:
+                    cookie = f"{cookie}; Secure"
+                if 'Partitioned' not in cookie:
+                    cookie = f"{cookie}; Partitioned"
             else:
-                # Top-level direct navigation (browser tabs / Vercel domain): SameSite=Lax; Secure is standard
-                if 'SameSite=None; Secure; Partitioned' in cookie:
-                    cookie = cookie.replace('SameSite=None; Secure; Partitioned', 'SameSite=Lax; Secure')
+                # Top-level direct first-party navigation on HTTPS: SameSite=Lax; Secure
+                if 'SameSite=None' in cookie:
+                    cookie = cookie.replace('SameSite=None', 'SameSite=Lax')
                 elif 'SameSite=' not in cookie:
-                    cookie = f"{cookie}; SameSite=Lax; Secure"
+                    cookie = f"{cookie}; SameSite=Lax"
+                if 'Secure' not in cookie:
+                    cookie = f"{cookie}; Secure"
+                if '; Partitioned' in cookie:
+                    cookie = cookie.replace('; Partitioned', '')
             response.headers.add('Set-Cookie', cookie)
     return response
 
@@ -926,7 +975,14 @@ def login():
 
         if user and verify_user_password(user, password, conn):
             conn.close()
-            token = create_user_session(user['id'])
+            is_demo_user = bool(user['email'] and user['email'].lower() == 'demo.student@university.edu')
+            token = create_user_session(user['id'], is_demo=is_demo_user)
+            if is_demo_user:
+                session['is_demo'] = True
+                session['user_email'] = 'demo.student@university.edu'
+            else:
+                session['user_email'] = user['email']
+            session.permanent = True
             flash(f"Welcome back, {user['name']}!", "success")
             next_url = request.args.get('next') or request.form.get('next')
             if next_url and next_url.startswith('/') and not next_url.startswith('//'):
@@ -943,13 +999,8 @@ def login():
 def demo_login():
     """
     Controlled Demo button handler:
-    - If already logged in as a student, opens their dashboard (or switches to demo if requested via ?switch=1).
-    - If not logged in, idempotently seeds the Demo Student account and signs into the live demo workspace.
+    Always seeds and logs into the Demo Student account (Aarav Sharma), guaranteeing a valid session.
     """
-    if g.user and request.args.get('switch') != '1':
-        flash(f"Continuing as {g.user['name']}.", "info")
-        return redirect(custom_url_for('dashboard'))
-
     user_id = seed_demo_student(db_path=app.config.get('DATABASE'))
     token = create_user_session(user_id, is_demo=True)
     session['is_demo'] = True

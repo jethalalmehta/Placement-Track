@@ -480,6 +480,8 @@ def seed_demo_student(email="demo.student@university.edu", db_path=None, force_r
             cursor.execute('UPDATE users SET password_hash = ? WHERE id = ?', (generate_password_hash(demo_password), user_id))
         if not existing['student_id']:
             cursor.execute('UPDATE users SET student_id = ? WHERE id = ?', (demo_student_id, user_id))
+        if force_reset:
+            cursor.execute('UPDATE users SET name = ? WHERE id = ?', ("Aarav Sharma", user_id))
         cursor.execute("UPDATE users SET role = 'student' WHERE id = ? AND (role IS NULL OR role = '')", (user_id,))
     else:
         pw_hash = generate_password_hash(demo_password)

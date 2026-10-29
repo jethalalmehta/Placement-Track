@@ -149,17 +149,18 @@
         </div>
 
         {% if is_coordinator %}
-          <a href="{{ url_for('demo_login', switch=1) }}" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 5px 8px;" title="Switch to Student Demo view">
+          <a href="{{ url_for('demo_login', switch=1) }}" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 5px 8px; white-space: nowrap;" title="Switch to Student Demo view">
             Role: Coordinator (Switch to Student)
           </a>
         {% elif is_demo_user %}
-          <a href="{{ url_for('coordinator_login') }}" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 5px 8px; color: #4338ca; border-color: #c7d2fe;" title="Switch to Placement Coordinator role to officially update student statuses">
-            Switch to Placement Coordinator
+          <a href="{{ url_for('coordinator_login') }}" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 5px 8px; color: #4338ca; border-color: #c7d2fe; white-space: nowrap;" title="Switch to Placement Coordinator role to officially update student statuses">
+            Coordinator View
           </a>
-          <form id="resetDemoForm" method="POST" action="{{ url_for('demo_reset') }}" style="display: inline;">
+          <form id="resetDemoForm" method="POST" action="{{ url_for('demo_reset') }}" style="display: inline; margin: 0;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="button" class="btn btn-secondary btn-sm" title="Reset Demo Sample Data" style="font-size: 12px;" data-confirm-form="resetDemoForm" data-confirm-title="Reset Demo Sample Data" data-confirm-message="Reset the Demo Student workspace back to its clean initial sample records?">
-              Reset Demo Data
+            {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+            <button type="button" class="btn btn-secondary btn-sm" title="Reset Demo Sample Data" style="font-size: 11px; padding: 5px 8px; white-space: nowrap;" data-confirm-form="resetDemoForm" data-confirm-title="Reset Demo Sample Data" data-confirm-message="Reset the Demo Student workspace back to its clean initial sample records?">
+              Reset Demo
             </button>
           </form>
         {% endif %}

@@ -86,6 +86,26 @@ function initAuthAndCsrfSync() {
       }
     });
   }
+
+  // Delegated click handler to guarantee _st is attached on all internal links
+  document.addEventListener('click', (e) => {
+    const link = e.target.closest('a[href]');
+    if (!link) return;
+    const href = link.getAttribute('href') || '';
+    const curToken = getAuthToken();
+    if (
+      curToken &&
+      href.startsWith('/') &&
+      !href.startsWith('//') &&
+      !href.startsWith('/logout') &&
+      !href.startsWith('/login') &&
+      !href.startsWith('/register') &&
+      !href.includes('_st=')
+    ) {
+      const sep = href.includes('?') ? '&' : '?';
+      link.setAttribute('href', `${href}${sep}_st=${encodeURIComponent(curToken)}`);
+    }
+  });
 }
 
 // 1. Sidebar Toggle for Mobile Devices

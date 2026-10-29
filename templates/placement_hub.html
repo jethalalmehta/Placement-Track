@@ -4,36 +4,36 @@
 {% block page_title %}Placement Hub{% endblock %}
 
 {% block topbar_actions %}
-<div style="display: flex; align-items: center; gap: 8px;">
+<div class="hub-header-actions" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
   <!-- Refresh Online Opportunities -->
-  <form method="POST" action="{{ url_for('refresh_placement_jobs') }}" style="display: inline;">
+  <form method="POST" action="{{ url_for('refresh_placement_jobs') }}" style="display: inline; margin: 0;">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
-    <button type="submit" class="btn btn-secondary btn-sm" title="Synchronize fresh opportunities from Jobicy, Arbeitnow, and Campus feeds">
+    <button type="submit" class="btn btn-secondary btn-sm" title="Synchronize fresh opportunities from Jobicy, Arbeitnow, and Campus feeds" style="white-space: nowrap;">
       <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="vertical-align: -2px; margin-right: 4px;">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
       </svg>
-      Refresh Opportunities
+      Refresh
     </button>
   </form>
 
   <!-- Auto-Status & Simulator Button -->
-  <button type="button" class="btn btn-secondary btn-sm" data-modal-target="emailSimulatorModal" title="Test automated recruitment status synchronization & email parser">
+  <button type="button" class="btn btn-secondary btn-sm" data-modal-target="emailSimulatorModal" title="Test automated recruitment status synchronization & email parser" style="white-space: nowrap;">
     <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="vertical-align: -2px; margin-right: 4px;">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
     </svg>
-    Status Auto-Sync & Simulator
+    Auto-Sync Status
   </button>
 
 {% if is_coordinator or active_tab == 'explore' %}
-<button type="button" class="btn btn-primary btn-sm" data-modal-target="addDriveModal">
+<button type="button" class="btn btn-primary btn-sm" data-modal-target="addDriveModal" style="white-space: nowrap;">
   <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
   </svg>
-  <span>+ Add Placement Drive</span>
+  <span>+ Add Drive</span>
 </button>
 {% else %}
-<button type="button" class="btn btn-primary btn-sm" data-modal-target="addAppModal">
+<button type="button" class="btn btn-primary btn-sm" data-modal-target="addAppModal" style="white-space: nowrap;">
   <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
   </svg>
@@ -89,14 +89,14 @@
 <!-- ========================================== -->
 
 <!-- Search, Filter & Sort Toolbar -->
-<div class="card" style="margin-bottom: 22px; padding: 16px 20px;">
-  <form method="GET" action="{{ url_for('placement_hub') }}" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+<div class="card hub-filter-card" style="margin-bottom: 22px; padding: 14px 18px;">
+  <form method="GET" action="{{ url_for('placement_hub') }}" class="hub-filter-form">
     {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
     <input type="hidden" name="tab" value="explore">
     <input type="hidden" name="timeline" value="{{ status_filter }}">
 
     <!-- Search Input -->
-    <div style="flex: 1; min-width: 260px; max-width: 380px;">
+    <div class="hub-search-box">
       <input 
         type="text" 
         name="search" 
@@ -107,7 +107,7 @@
     </div>
 
     <!-- Filters & Sort -->
-    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+    <div class="hub-filter-controls">
       <!-- Timeline Filter Tabs -->
       <div class="filter-tabs">
         <a href="{{ url_for('placement_hub', tab='explore', timeline='all', job_type=job_type_filter, work_mode=work_mode_filter, search=search_query, sort=sort_by) }}" 
@@ -125,14 +125,14 @@
       </div>
 
       <!-- Job Type Filter -->
-      <select name="job_type" class="form-control" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="this.form.submit()">
+      <select name="job_type" class="form-control" style="width: auto; padding: 6px 10px; font-size: 13px; min-width: 100px;" onchange="this.form.submit()">
         <option value="all" {% if job_type_filter == 'all' %}selected{% endif %}>Type: All</option>
         <option value="Full-time" {% if job_type_filter == 'Full-time' %}selected{% endif %}>Full-time</option>
         <option value="Internship" {% if job_type_filter == 'Internship' %}selected{% endif %}>Internship</option>
       </select>
 
       <!-- Work Mode Filter -->
-      <select name="work_mode" class="form-control" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="this.form.submit()">
+      <select name="work_mode" class="form-control" style="width: auto; padding: 6px 10px; font-size: 13px; min-width: 100px;" onchange="this.form.submit()">
         <option value="all" {% if work_mode_filter == 'all' %}selected{% endif %}>Mode: All</option>
         <option value="On-site" {% if work_mode_filter == 'On-site' %}selected{% endif %}>On-site</option>
         <option value="Hybrid" {% if work_mode_filter == 'Hybrid' %}selected{% endif %}>Hybrid</option>
@@ -140,12 +140,12 @@
       </select>
 
       <!-- Sort Filter -->
-      <select name="sort" class="form-control" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="this.form.submit()">
-        <option value="deadline" {% if sort_by == 'deadline' %}selected{% endif %}>Sort: Deadline (Earliest)</option>
-        <option value="package" {% if sort_by == 'package' %}selected{% endif %}>Sort: Package CTC</option>
-        <option value="company_name" {% if sort_by == 'company_name' %}selected{% endif %}>Sort: Company (A-Z)</option>
+      <select name="sort" class="form-control" style="width: auto; padding: 6px 10px; font-size: 13px; min-width: 110px;" onchange="this.form.submit()">
+        <option value="deadline" {% if sort_by == 'deadline' %}selected{% endif %}>Sort: Deadline</option>
+        <option value="package" {% if sort_by == 'package' %}selected{% endif %}>Sort: Package</option>
+        <option value="company_name" {% if sort_by == 'company_name' %}selected{% endif %}>Sort: Name</option>
         <option value="drive_date" {% if sort_by == 'drive_date' %}selected{% endif %}>Sort: Drive Date</option>
-        <option value="recent" {% if sort_by == 'recent' %}selected{% endif %}>Sort: Recently Added</option>
+        <option value="recent" {% if sort_by == 'recent' %}selected{% endif %}>Sort: Recent</option>
       </select>
 
       <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
@@ -158,20 +158,20 @@
 
 <!-- Opportunities Cards Grid -->
 {% if companies %}
-  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px;">
+  <div class="hub-companies-grid">
     {% for comp in companies %}
-      <div class="card {% if highlight_id == comp['id'] %}highlight-card{% endif %}" id="drive-card-{{ comp['id'] }}" style="display: flex; flex-direction: column; justify-content: space-between; position: relative;">
+      <div class="card company-drive-card {% if highlight_id == comp['id'] %}highlight-card{% endif %}" id="drive-card-{{ comp['id'] }}">
         <div>
           <!-- Header: Company Monogram, Name, Role, Package & Type -->
-          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px;">
-            <div style="display: flex; align-items: flex-start; gap: 12px;">
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; min-width: 0;">
+            <div style="display: flex; align-items: flex-start; gap: 10px; min-width: 0; flex: 1;">
               <!-- Company Monogram Badge -->
-              <div style="width: 44px; height: 44px; border-radius: 10px; background: #0f172a; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+              <div style="width: 42px; height: 42px; border-radius: 10px; background: #0f172a; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                 {{ comp['company_name'][:2]|upper }}
               </div>
-              <div>
-                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                  <h3 style="font-size: 17px; font-weight: 700; color: var(--text-primary); margin: 0;">{{ comp['company_name'] }}</h3>
+              <div style="min-width: 0; flex: 1;">
+                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0;">
+                  <h3 style="font-size: 16px; font-weight: 700; color: var(--text-primary); margin: 0; word-break: break-word; overflow-wrap: break-word;">{{ comp['company_name'] }}</h3>
                   {% if comp.get('is_demo') == 1 %}
                     <span class="badge" style="background: #f1f5f9; color: #64748b; font-size: 10px; padding: 2px 6px;" title="Sample campus recruitment drive for testing & evaluation.">Sample Drive</span>
                   {% else %}
@@ -181,18 +181,18 @@
                     <span class="badge" style="background: #fee2e2; color: #b91c1c; font-size: 10px; padding: 2px 6px;">Closed</span>
                   {% endif %}
                 </div>
-                <div style="font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-top: 3px;">
+                <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-top: 3px; word-break: break-word;">
                   {{ comp['role'] }}
                 </div>
               </div>
             </div>
 
             {% if comp['package_ctc'] %}
-              <div style="text-align: right; flex-shrink: 0;">
-                <div class="mono-metric" style="font-size: 15px; font-weight: 700; color: #0d9488;">
+              <div style="text-align: right; flex-shrink: 0; min-width: 0;">
+                <div class="mono-metric" style="font-size: 14px; font-weight: 700; color: #0d9488; white-space: nowrap;">
                   {{ comp['package_ctc'] }}
                 </div>
-                <div style="font-size: 11px; color: var(--text-muted);">CTC / Package</div>
+                <div style="font-size: 10px; color: var(--text-muted); white-space: nowrap;">CTC / Package</div>
               </div>
             {% endif %}
           </div>
@@ -259,8 +259,8 @@
         </div>
 
         <!-- Action Buttons: View Details, Apply Now, and Official Portal -->
-        <div style="padding-top: 12px; border-top: 1px solid var(--border-light); display: flex; flex-direction: column; gap: 8px;">
-          <div style="display: flex; gap: 8px;">
+        <div style="padding-top: 12px; border-top: 1px solid var(--border-light); display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; min-width: 0;">
             <!-- View Details Button -->
             <button type="button" class="btn btn-secondary btn-sm" style="flex: 1; text-align: center;" 
                     data-modal-target="driveDetailsModal"

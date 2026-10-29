@@ -60,6 +60,9 @@
 
 html, body {
   min-height: 100vh;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
   background-color: var(--bg-app);
   color: var(--text-primary);
   font-family: var(--font-sans);
@@ -108,6 +111,9 @@ button, input, select, textarea {
 .app-container {
   display: flex;
   min-height: 100vh;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 /* Sidebar */
@@ -262,31 +268,44 @@ button, input, select, textarea {
 
 /* Main Content Area */
 .app-main {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: calc(100% - var(--sidebar-width));
+  max-width: calc(100vw - var(--sidebar-width));
   margin-left: var(--sidebar-width);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 /* Top Bar */
 .app-topbar {
-  height: 68px;
+  min-height: 68px;
+  height: auto;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border-light);
-  padding: 0 32px;
+  padding: 10px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
   position: sticky;
   top: 0;
   z-index: 30;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .topbar-left {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .menu-toggle {
@@ -303,20 +322,29 @@ button, input, select, textarea {
   font-size: 19px;
   font-weight: 700;
   letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
 .topbar-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 /* Page Content Viewport */
 .app-content {
-  flex: 1;
-  padding: 28px 32px 48px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 24px 28px 48px;
   max-width: 1440px;
   width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 /* Flash Messages */
@@ -1122,7 +1150,79 @@ button, input, select, textarea {
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.14);
 }
 
+/* ==========================================================================
+   PLACEMENT HUB RESPONSIVE LAYOUT & OPPORTUNITY CARDS
+   ========================================================================== */
+.hub-companies-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 18px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.company-drive-card {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+}
+
+.company-drive-card h3 {
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.hub-filter-form {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  width: 100%;
+}
+
+.hub-search-box {
+  flex: 1 1 240px;
+  min-width: 0;
+  max-width: 380px;
+}
+
+.hub-filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 2 1 auto;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
 /* Responsive Breakpoints */
+@media (max-width: 1200px) {
+  .hub-search-box {
+    max-width: 100%;
+    flex: 1 1 100%;
+  }
+  .hub-filter-controls {
+    justify-content: flex-start;
+    flex: 1 1 100%;
+  }
+}
+
+@media (max-width: 1050px) {
+  .hub-companies-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+}
+
 @media (max-width: 960px) {
   .split-grid-2,
   .split-grid-equal {
@@ -1141,6 +1241,8 @@ button, input, select, textarea {
 
   .app-main {
     margin-left: 0;
+    width: 100vw;
+    max-width: 100vw;
   }
 
   .menu-toggle {
@@ -1152,11 +1254,44 @@ button, input, select, textarea {
   }
 
   .app-content {
-    padding: 20px 16px 36px;
+    padding: 18px 14px 36px;
   }
   
   .app-topbar {
-    padding: 0 16px;
+    padding: 10px 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .hub-companies-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-title {
+    font-size: 16px;
+  }
+  .app-topbar {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .topbar-right .btn-sm {
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+  .filter-tabs {
+    width: 100%;
+    display: flex;
+    overflow-x: auto;
+  }
+  .filter-tab {
+    flex: 1;
+    text-align: center;
+    padding: 6px 4px;
+    font-size: 11px;
+    white-space: nowrap;
   }
 }
 
