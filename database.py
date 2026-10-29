@@ -723,11 +723,20 @@ def seed_demo_student(email="demo.student@university.edu", db_path=None, force_r
             "• Designed a responsive interface featuring interactive career roadmaps, quizzes, and progress tracking."
         )
         import os
-        upload_base = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads', 'resumes', f'user_{user_id}')
-        os.makedirs(upload_base, exist_ok=True)
+        upload_base_dir = os.environ.get('UPLOAD_FOLDER')
+        if not upload_base_dir:
+            if os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
+                upload_base_dir = '/tmp/uploads/resumes'
+            else:
+                upload_base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads', 'resumes')
+        upload_base = os.path.join(upload_base_dir, f'user_{user_id}')
         res_file_path = os.path.join(upload_base, 'v1_Aryan_Singh_AIML_Resume.txt')
-        with open(res_file_path, 'w', encoding='utf-8') as f:
-            f.write(demo_resume_text)
+        try:
+            os.makedirs(upload_base, exist_ok=True)
+            with open(res_file_path, 'w', encoding='utf-8') as f:
+                f.write(demo_resume_text)
+        except Exception:
+            pass
 
         import json
         cursor.execute('''
