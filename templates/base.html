@@ -104,6 +104,12 @@
           </svg>
         </button>
         <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1>
+        {% if is_demo_user %}
+        <span class="badge" style="display: inline-flex; align-items: center; gap: 5px; margin-left: 10px; padding: 3px 8px; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; border-radius: 9999px; font-size: 11px; font-weight: 600;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: #2563eb;"></span>
+          Demo Mode
+        </span>
+        {% endif %}
       </div>
 
       <div class="topbar-right">

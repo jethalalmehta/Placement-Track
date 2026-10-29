@@ -153,22 +153,29 @@ def get_serializer():
 def db_conn():
     return get_db_connection(app.config.get('DATABASE'))
 
-def create_user_session(user_id):
+def create_user_session(user_id, is_demo=False):
     """Creates a server-tracked session and returns a signed token for iframe/cookie resilience."""
     sid = secrets.token_hex(16)
     csrf = secrets.token_hex(16)
     conn = db_conn()
-    conn.execute('INSERT INTO user_sessions (session_id, user_id) VALUES (?, ?)', (sid, user_id))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute('INSERT OR REPLACE INTO user_sessions (session_id, user_id) VALUES (?, ?)', (sid, user_id))
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        conn.close()
 
     session.clear()
     session['user_id'] = user_id
     session['session_id'] = sid
     session['csrf_token'] = csrf
+    if is_demo:
+        session['is_demo'] = True
+        session['user_email'] = 'demo.student@university.edu'
     session.permanent = True
 
-    token = get_serializer().dumps({'uid': user_id, 'sid': sid, 'csrf': csrf})
+    token = get_serializer().dumps({'uid': user_id, 'sid': sid, 'csrf': csrf, 'is_demo': is_demo})
     g.auth_token = token
     g.csrf_token = csrf
     return token
@@ -241,6 +248,7 @@ def before_request():
 
     user_id = session.get('user_id')
     session_id = session.get('session_id')
+    is_demo = session.get('is_demo', False)
 
     # Also check signed token (_st in query/form or X-Auth-Token header) for cross-origin iframe support
     raw_token = (
@@ -255,44 +263,77 @@ def before_request():
             t_uid = payload.get('uid')
             t_sid = payload.get('sid')
             t_csrf = payload.get('csrf')
-            if t_uid and t_sid:
+            t_demo = payload.get('is_demo', False)
+            if t_uid:
                 user_id = t_uid
-                session_id = t_sid
+                session_id = t_sid or session_id
+                is_demo = is_demo or t_demo
                 g.auth_token = raw_token
-                g.csrf_token = t_csrf
+                g.csrf_token = t_csrf or g.csrf_token
                 session['user_id'] = t_uid
-                session['session_id'] = t_sid
-                session['csrf_token'] = t_csrf
+                if t_sid:
+                    session['session_id'] = t_sid
+                if t_csrf:
+                    session['csrf_token'] = t_csrf
+                if is_demo:
+                    session['is_demo'] = True
+                    session['user_email'] = 'demo.student@university.edu'
         except (BadSignature, SignatureExpired):
             pass
 
     if user_id:
         conn = db_conn()
         cursor = conn.cursor()
-        valid_session = True
-        if session_id:
-            cursor.execute(
-                'SELECT 1 FROM user_sessions WHERE session_id = ? AND user_id = ?',
-                (session_id, user_id)
-            )
-            if not cursor.fetchone():
-                valid_session = False
+        
+        cursor.execute(
+            'SELECT id, student_id, name, email, COALESCE(role, "student") as role, phone FROM users WHERE id = ?',
+            (user_id,)
+        )
+        u_row = cursor.fetchone()
 
-        if valid_session:
-            cursor.execute('SELECT id, student_id, name, email, COALESCE(role, "student") as role, phone FROM users WHERE id = ?', (user_id,))
-            u_row = cursor.fetchone()
-            g.user = dict(u_row) if u_row else None
-            if g.user and session_id and not g.auth_token:
+        # Seamless Serverless / Cold Start Self-Healing for Demo Account:
+        # If user record is missing in a fresh container instance and session is marked as demo,
+        # seed the demo student immediately so navigation is never broken.
+        if not u_row and (is_demo or user_id == 1 or session.get('user_email') == 'demo.student@university.edu'):
+            try:
+                seed_demo_student(db_path=app.config.get('DATABASE'))
+                cursor.execute(
+                    'SELECT id, student_id, name, email, COALESCE(role, "student") as role, phone FROM users WHERE LOWER(email) = ?',
+                    ('demo.student@university.edu',)
+                )
+                u_row = cursor.fetchone()
+                if u_row:
+                    user_id = u_row['id']
+                    session['user_id'] = user_id
+            except Exception as e:
+                app.logger.warning(f"Auto-seed demo student on cold start: {e}")
+
+        if u_row:
+            g.user = dict(u_row)
+            # Sync session_id in user_sessions table if not present
+            if session_id:
+                try:
+                    cursor.execute(
+                        'INSERT OR IGNORE INTO user_sessions (session_id, user_id) VALUES (?, ?)',
+                        (session_id, user_id)
+                    )
+                    conn.commit()
+                except Exception:
+                    pass
+
+            if not g.auth_token:
                 if not g.csrf_token:
                     g.csrf_token = secrets.token_hex(16)
                     session['csrf_token'] = g.csrf_token
                 g.auth_token = get_serializer().dumps({
                     'uid': g.user['id'],
-                    'sid': session_id,
-                    'csrf': g.csrf_token
+                    'sid': session_id or ('sid_' + str(user_id)),
+                    'csrf': g.csrf_token,
+                    'is_demo': is_demo
                 })
         else:
             session.clear()
+
         conn.close()
 
     if not g.csrf_token:
@@ -308,16 +349,24 @@ def before_request():
 
 @app.after_request
 def after_request(response):
-    # Ensure cookies work in both HTTPS cross-origin iframes (SameSite=None; Secure; Partitioned) and HTTP localhost
+    # Ensure cookies work reliably in both HTTPS cross-origin iframes and first-party top-level navigation
     is_https = request.is_secure or request.headers.get('X-Forwarded-Proto', '').lower() == 'https'
     if is_https and 'Set-Cookie' in response.headers:
         cookies = response.headers.getlist('Set-Cookie')
         response.headers.pop('Set-Cookie', None)
+        is_iframe = request.headers.get('Sec-Fetch-Dest') == 'iframe' or request.args.get('in_iframe') == '1'
         for cookie in cookies:
-            if 'SameSite=Lax' in cookie:
-                cookie = cookie.replace('SameSite=Lax', 'SameSite=None; Secure; Partitioned')
-            elif 'SameSite=' not in cookie:
-                cookie = f"{cookie}; SameSite=None; Secure; Partitioned"
+            if is_iframe:
+                if 'SameSite=Lax' in cookie:
+                    cookie = cookie.replace('SameSite=Lax', 'SameSite=None; Secure; Partitioned')
+                elif 'SameSite=' not in cookie:
+                    cookie = f"{cookie}; SameSite=None; Secure; Partitioned"
+            else:
+                # Top-level direct navigation (browser tabs / Vercel domain): SameSite=Lax; Secure is standard
+                if 'SameSite=None; Secure; Partitioned' in cookie:
+                    cookie = cookie.replace('SameSite=None; Secure; Partitioned', 'SameSite=Lax; Secure')
+                elif 'SameSite=' not in cookie:
+                    cookie = f"{cookie}; SameSite=Lax; Secure"
             response.headers.add('Set-Cookie', cookie)
     return response
 
@@ -902,7 +951,10 @@ def demo_login():
         return redirect(custom_url_for('dashboard'))
 
     user_id = seed_demo_student(db_path=app.config.get('DATABASE'))
-    token = create_user_session(user_id)
+    token = create_user_session(user_id, is_demo=True)
+    session['is_demo'] = True
+    session['user_email'] = 'demo.student@university.edu'
+    session.permanent = True
     flash("Signed in to Demo Account: Aarav Sharma (ID: CSE2026001). All modules and SQLite records are live.", "success")
     return redirect(append_token_to_url(flask_url_for('dashboard'), token))
 
@@ -938,7 +990,9 @@ def logout():
     g.user = None
     g.auth_token = None
     flash("You have been signed out safely.", "info")
-    return redirect(flask_url_for('login', logged_out='1'))
+    resp = redirect(flask_url_for('login', logged_out='1'))
+    resp.set_cookie(app.config.get('SESSION_COOKIE_NAME', 'session'), '', expires=0, path='/')
+    return resp
 
 # -------------------------------------------------------------
 # STUDENT DASHBOARD & PLACEMENT ANALYSIS ROUTES
