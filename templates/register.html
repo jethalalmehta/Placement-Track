@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Register — PlacementTrack{% endblock %}
+
+{% block public_content %}
+<div class="auth-page">
+  <div class="auth-card" style="max-width: 580px;">
+    <div class="auth-header">
+      <a href="{{ url_for('home') }}" class="auth-brand" style="text-decoration: none;">
+        <div class="brand-icon">P</div>
+        <span class="brand-text">PlacementTrack</span>
+      </a>
+      <h1 class="auth-title">Create Student Account</h1>
+      <p class="auth-subtitle">Set up your personal placement preparation workspace</p>
+    </div>
+
+    <form method="POST" action="{{ url_for('register') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="name">Full Name *</label>
+          <input 
+            type="text" 
+            id="name" 
+            name="name" 
+            class="form-control" 
+            placeholder="e.g. Aarav Sharma" 
+            value="{{ form_data.get('name', '') if form_data else '' }}" 
+            required 
+            autofocus
+          >
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="student_id">Student ID / Roll No.</label>
+          <input 
+            type="text" 
+            id="student_id" 
+            name="student_id" 
+            class="form-control" 
+            placeholder="e.g. CSE2026042" 
+            value="{{ form_data.get('student_id', '') if form_data else '' }}"
+          >
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="email">Email Address *</label>
+          <input 
+            type="email" 
+            id="email" 
+            name="email" 
+            class="form-control" 
+            placeholder="student@college.edu" 
+            value="{{ form_data.get('email', '') if form_data else '' }}" 
+            required
+          >
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Password (min 6 characters) *</label>
+          <input 
+            type="password" 
+            id="password" 
+            name="password" 
+            class="form-control" 
+            placeholder="••••••••" 
+            required 
+            minlength="6"
+          >
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="college">College / University</label>
+          <input 
+            type="text" 
+            id="college" 
+            name="college" 
+            class="form-control" 
+            placeholder="e.g. National Institute of Technology" 
+            value="{{ form_data.get('college', '') if form_data else '' }}"
+          >
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="degree">Degree</label>
+          <input 
+            type="text" 
+            id="degree" 
+            name="degree" 
+            class="form-control" 
+            placeholder="B.Tech" 
+            value="{{ form_data.get('degree', 'B.Tech') if form_data else 'B.Tech' }}"
+          >
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="branch">Branch / Department</label>
+          <input 
+            type="text" 
+            id="branch" 
+            name="branch" 
+            class="form-control" 
+            placeholder="Computer Science & Engineering" 
+            value="{{ form_data.get('branch', 'Computer Science & Engineering') if form_data else 'Computer Science & Engineering' }}"
+          >
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="graduation_year">Graduation Year</label>
+          <input 
+            type="number" 
+            id="graduation_year" 
+            name="graduation_year" 
+            class="form-control" 
+            placeholder="2026" 
+            value="{{ form_data.get('graduation_year', '2026') if form_data else '2026' }}"
+          >
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="cgpa">Current CGPA</label>
+          <input 
+            type="number" 
+            step="0.01" 
+            min="0" 
+            max="10" 
+            id="cgpa" 
+            name="cgpa" 
+            class="form-control" 
+            placeholder="e.g. 8.75" 
+            value="{{ form_data.get('cgpa', '') if form_data else '' }}"
+          >
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 11px; margin-top: 6px;">
+        Complete Registration
+      </button>
+    </form>
+
+    <div style="text-align: center; margin-top: 24px; font-size: 13px; color: var(--text-muted);">
+      Already have an account? 
+      <a href="{{ url_for('login') }}" style="font-weight: 600; color: var(--primary);">Sign In</a>
+      <span style="margin: 0 8px;">·</span>
+      <a href="{{ url_for('demo_login') }}" style="color: var(--primary);">Use Demo Account</a>
+      <span style="margin: 0 8px;">·</span>
+      <a href="{{ url_for('home') }}" style="color: var(--text-secondary);">Home</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

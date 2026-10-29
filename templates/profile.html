@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Student Profile — PlacementTrack{% endblock %}
+{% block page_title %}Student Academic Profile{% endblock %}
+
+{% block content %}
+<div style="max-width: 900px; margin: 0 auto;">
+  <div class="card" style="margin-bottom: 24px;">
+    <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+      <div class="avatar-circle" style="width: 64px; height: 64px; font-size: 24px;">
+        {{ current_user['name'][0]|upper }}
+      </div>
+      <div>
+        <h2 style="font-size: 22px; font-weight: 700; color: var(--text-primary);">
+          {{ current_user['name'] }}
+        </h2>
+        <div class="meta-line" style="margin-top: 4px;">
+          {% if current_user['student_id'] %}
+            <span class="mono-metric" style="font-weight: 600; color: var(--primary);">ID: {{ current_user['student_id'] }}</span>
+            <span class="meta-dot">·</span>
+          {% endif %}
+          <span>{{ current_user['email'] }}</span>
+          <span class="meta-dot">·</span>
+          <span>{{ profile['degree'] if profile and profile['degree'] else 'B.Tech' }} {{ profile['branch'] if profile and profile['branch'] else 'Computer Science & Engineering' }}</span>
+          {% if profile and profile['graduation_year'] %}
+            <span class="meta-dot">·</span>
+            <span>Class of {{ profile['graduation_year'] }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h3 class="card-title">Edit Placement Profile</h3>
+        <p class="card-subtitle">Keep your academic and technical skills updated for placement records</p>
+      </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('profile') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="name">Full Name *</label>
+          <input type="text" id="name" name="name" class="form-control" value="{{ current_user['name'] }}" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="student_id">Student ID / Roll No.</label>
+          <input type="text" id="student_id" name="student_id" class="form-control" value="{{ current_user['student_id'] or '' }}" placeholder="e.g. CSE2026001">
+          <div class="form-hint">You can sign in using either your Email or this Student ID.</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="email">Email Address</label>
+          <input type="email" id="email" class="form-control" value="{{ current_user['email'] }}" disabled style="background: var(--bg-subtle);">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="college">College / University</label>
+          <input type="text" id="college" name="college" class="form-control" value="{{ profile['college'] if profile and profile['college'] else '' }}" placeholder="e.g. National Institute of Technology">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="degree">Degree</label>
+          <input type="text" id="degree" name="degree" class="form-control" value="{{ profile['degree'] if profile and profile['degree'] else 'B.Tech' }}" placeholder="B.Tech">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="branch">Branch / Department</label>
+          <input type="text" id="branch" name="branch" class="form-control" value="{{ profile['branch'] if profile and profile['branch'] else 'Computer Science & Engineering' }}" placeholder="Computer Science & Engineering">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="graduation_year">Graduation Year</label>
+          <input type="number" id="graduation_year" name="graduation_year" class="form-control" value="{{ profile['graduation_year'] if profile and profile['graduation_year'] else 2026 }}">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="cgpa">Current CGPA (out of 10.0)</label>
+          <input type="number" step="0.01" min="0" max="10" id="cgpa" name="cgpa" class="form-control" value="{{ profile['cgpa'] if profile and profile['cgpa'] is not none else '' }}" placeholder="8.85">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="technical_skills">Technical Skills (comma-separated)</label>
+        <input type="text" id="technical_skills" name="technical_skills" class="form-control" value="{{ profile['technical_skills'] if profile and profile['technical_skills'] else '' }}" placeholder="Data Structures, Algorithms, Python, JavaScript, SQL, System Design">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="areas_of_interest">Areas of Interest</label>
+        <input type="text" id="areas_of_interest" name="areas_of_interest" class="form-control" value="{{ profile['areas_of_interest'] if profile and profile['areas_of_interest'] else '' }}" placeholder="Backend Development, Cloud Computing, Distributed Systems">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="bio">Professional Summary / Bio</label>
+        <textarea id="bio" name="bio" class="form-control" rows="3" placeholder="Brief statement regarding your engineering interests and placement targets...">{{ profile['bio'] if profile and profile['bio'] else '' }}</textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Save Profile Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

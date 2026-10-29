@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In — PlacementTrack{% endblock %}
+
+{% block public_content %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <a href="{{ url_for('home') }}" class="auth-brand" style="text-decoration: none;">
+        <div class="brand-icon">P</div>
+        <span class="brand-text">PlacementTrack</span>
+      </a>
+      <h1 class="auth-title">Welcome Back</h1>
+      <p class="auth-subtitle">Sign in with your Email, Student ID, or Name</p>
+    </div>
+
+    <!-- Quick Demo Access for Evaluators / Viva -->
+    <div class="demo-login-box">
+      <div style="font-size: 12px; font-weight: 600; color: var(--primary); margin-bottom: 4px;">
+        Demo Student Account (Pre-Seeded SQLite Records)
+      </div>
+      <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">
+        Email: <code style="color: var(--text-primary); font-family: var(--font-mono);">demo.student@university.edu</code> · ID: <code style="color: var(--text-primary); font-family: var(--font-mono);">CSE2026001</code> · Pass: <code style="color: var(--text-primary); font-family: var(--font-mono);">Placement@2026</code>
+      </p>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <a href="{{ url_for('demo_login') }}" class="btn btn-primary btn-sm" style="flex: 1; font-weight: 600;">
+          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span>1-Click Demo Login</span>
+        </a>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('identifier').value='demo.student@university.edu'; document.getElementById('password').value='Placement@2026';">
+          Fill Demo Credentials
+        </button>
+      </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('login') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
+
+      <div class="form-group">
+        <label class="form-label" for="identifier">Email Address or Student ID</label>
+        <input 
+          type="text" 
+          id="identifier" 
+          name="identifier" 
+          class="form-control" 
+          placeholder="student@university.edu or CSE2026001" 
+          value="{{ email or '' }}" 
+          required 
+          autocomplete="username"
+          autofocus
+        >
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">Password</label>
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          class="form-control" 
+          placeholder="••••••••" 
+          required 
+          autocomplete="current-password"
+        >
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 11px; margin-top: 6px;">
+        Sign In to Workspace
+      </button>
+    </form>
+
+    <div style="text-align: center; margin-top: 24px; font-size: 13px; color: var(--text-muted);">
+      Don't have an account yet? 
+      <a href="{{ url_for('register') }}" style="font-weight: 600; color: var(--primary);">Create Student Account</a>
+      <span style="margin: 0 8px;">·</span>
+      <a href="{{ url_for('home') }}" style="color: var(--text-secondary);">Back to Home</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

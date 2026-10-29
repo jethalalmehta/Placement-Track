@@ -1,0 +1,46 @@
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Local databases and student data
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploaded candidate resumes and private documents (keep empty folder structure)
+uploads/*
+!uploads/.gitkeep
+!uploads/resumes/
+uploads/resumes/*
+!uploads/resumes/.gitkeep
+
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Node & Frontend dependencies and builds
+node_modules/
+build/
+dist/
+coverage/
+
+# IDE and Editor configurations
+.vscode/
+.idea/
+.antigravity/
+
+# Operating system artifacts & logs
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+

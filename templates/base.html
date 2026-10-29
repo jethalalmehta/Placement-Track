@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="auth-token" content="{{ auth_token }}">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>{% block title %}Placement Track — Placement Preparation & Tracking System{% endblock %}</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+{% if current_user %}
+<div class="app-container">
+  <!-- Desktop & Mobile Responsive Sidebar -->
+  <aside class="app-sidebar" id="appSidebar">
+    <div class="sidebar-header">
+      <a href="{{ url_for('dashboard') if current_user else url_for('home') }}" style="display: flex; align-items: center; gap: 12px; text-decoration: none;">
+        <div class="brand-icon">P</div>
+        <span class="brand-text">Placement Track</span>
+      </a>
+    </div>
+
+    <nav class="sidebar-nav">
+      <!-- 1. Dashboard -->
+      <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+        <span>Dashboard</span>
+      </a>
+
+      <!-- 2. Placement Hub -->
+      <a href="{{ url_for('placement_hub') }}" class="nav-link {% if request.endpoint in ('placement_hub', 'companies', 'applications') %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+        <span>Placement Hub</span>
+      </a>
+
+      <!-- 3. Performance Analytics -->
+      <a href="{{ url_for('performance_analytics') }}" class="nav-link {% if request.endpoint in ('performance_analytics', 'practice_tests') %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+        <span>Performance Analytics</span>
+      </a>
+
+      <!-- 4. Resume Analysis -->
+      <a href="{{ url_for('resume_analysis') }}" class="nav-link {% if request.endpoint == 'resume_analysis' %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <span>Resume Analysis</span>
+      </a>
+
+      <!-- 5. Student Profile -->
+      <a href="{{ url_for('profile') }}" class="nav-link {% if request.endpoint == 'profile' %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+        <span>Student Profile</span>
+      </a>
+
+      <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-light);">
+        <a href="{{ url_for('preparation') }}" class="nav-link {% if request.endpoint == 'preparation' %}active{% endif %}">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+          <span>Preparation Tasks</span>
+        </a>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <a href="{{ url_for('profile') }}" class="student-badge-mini" style="text-decoration: none;">
+        <div class="avatar-circle">{{ current_user['name'][0]|upper }}</div>
+        <div class="student-meta">
+          <span class="student-meta-name">{{ current_user['name'] }}</span>
+          <span class="student-meta-sub">
+            {% if is_demo_user %}Demo Account (CSE2026001){% else %}{{ current_user['student_id'] or 'B.Tech Student' }}{% endif %}
+          </span>
+        </div>
+      </a>
+      <a href="{{ url_for('logout') }}" title="Sign Out" class="btn btn-secondary btn-sm" style="padding: 6px 10px; font-size: 12px;">
+        <span>Logout</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main Viewport -->
+  <div class="app-main">
+    <header class="app-topbar">
+      <div class="topbar-left">
+        <button class="menu-toggle" id="menuToggle" aria-label="Toggle navigation">
+          <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1>
+      </div>
+
+      <div class="topbar-right">
+        <!-- In-App Status Notifications Bell -->
+        <div style="position: relative;" id="notifWrapper">
+          <button type="button" class="btn btn-secondary btn-sm" id="notifBellBtn" title="In-App Notifications" style="position: relative; padding: 6px 10px; display: inline-flex; align-items: center; justify-content: center;">
+            <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+            {% if unread_notifications_count > 0 %}
+              <span id="notifBadgeCount" style="position: absolute; top: -4px; right: -4px; background: #ef4444; color: #ffffff; font-size: 10px; font-weight: 700; border-radius: 10px; padding: 1px 5px; line-height: 1;">
+                {{ unread_notifications_count }}
+              </span>
+            {% endif %}
+          </button>
+
+          <!-- Notifications Dropdown Panel -->
+          <div id="notifDropdown" style="display: none; position: absolute; right: 0; top: 110%; width: 320px; background: #ffffff; border: 1px solid var(--border-light); border-radius: var(--radius-md); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); z-index: 1000; padding: 12px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-light); padding-bottom: 8px; margin-bottom: 8px;">
+              <span style="font-weight: 700; font-size: 13px; color: var(--text-primary);">Status Notifications</span>
+              <button type="button" id="markReadBtn" style="background: none; border: none; font-size: 11px; color: #0d9488; cursor: pointer; font-weight: 600;">Mark all read</button>
+            </div>
+            <div style="max-height: 240px; overflow-y: auto;">
+              {% if recent_notifications %}
+                {% for n in recent_notifications %}
+                  <div style="padding: 8px; border-radius: 6px; margin-bottom: 4px; background: {% if not n['is_read'] %}#f0fdfa{% else %}transparent{% endif %}; font-size: 12px; border-left: 3px solid {% if not n['is_read'] %}#0d9488{% else %}#e2e8f0{% endif %};">
+                    <div style="font-weight: 600; color: #0f172a;">{{ n['title'] }}</div>
+                    <div style="color: var(--text-secondary); margin-top: 2px;">{{ n['message'] }}</div>
+                    <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">{{ n['created_at'][:16].replace('T', ' ') if n['created_at'] else 'Recent' }}</div>
+                  </div>
+                {% endfor %}
+              {% else %}
+                <div style="text-align: center; color: var(--text-muted); font-size: 12px; padding: 16px 0;">No status notifications recorded.</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        {% if is_coordinator %}
+          <a href="{{ url_for('demo_login', switch=1) }}" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 5px 8px;" title="Switch to Student Demo view">
+            Role: Coordinator (Switch to Student)
+          </a>
+        {% elif is_demo_user %}
+          <a href="{{ url_for('coordinator_login') }}" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 5px 8px; color: #4338ca; border-color: #c7d2fe;" title="Switch to Placement Coordinator role to officially update student statuses">
+            Switch to Placement Coordinator
+          </a>
+          <form id="resetDemoForm" method="POST" action="{{ url_for('demo_reset') }}" style="display: inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="button" class="btn btn-secondary btn-sm" title="Reset Demo Sample Data" style="font-size: 12px;" data-confirm-form="resetDemoForm" data-confirm-title="Reset Demo Sample Data" data-confirm-message="Reset the Demo Student workspace back to its clean initial sample records?">
+              Reset Demo Data
+            </button>
+          </form>
+        {% endif %}
+        {% block topbar_actions %}{% endblock %}
+        <a href="{{ url_for('profile') }}" class="avatar-circle" title="Student Profile: {{ current_user['name'] }}">
+          {{ current_user['name'][0]|upper }}
+        </a>
+      </div>
+    </header>
+
+    <main class="app-content">
+      <!-- Flash Alert Notifications -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-container">
+            {% for category, message in messages %}
+              <div class="flash-message flash-{{ category }}">
+                <span>{{ message }}</span>
+                <button type="button" class="flash-close" aria-label="Close message">&times;</button>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% else %}
+  <!-- Public Layout (Landing, Login, Register) -->
+  <main>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div style="max-width: 520px; margin: 20px auto 0; padding: 0 16px;">
+          {% for category, message in messages %}
+            <div class="flash-message flash-{{ category }}">
+              <span>{{ message }}</span>
+              <button type="button" class="flash-close">&times;</button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block public_content %}{% endblock %}
+  </main>
+{% endif %}
+
+{% block modals %}{% endblock %}
+
+<!-- Universal Accessible Confirmation Modal (replaces native browser confirm for iframe reliability) -->
+<div class="modal-overlay" id="confirmActionModal" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
+  <div class="modal-content" style="max-width: 440px;">
+    <div class="modal-header">
+      <h3 class="card-title" id="confirmModalTitle">Confirm Action</h3>
+      <button type="button" class="flash-close" data-modal-close aria-label="Close dialog">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p id="confirmModalMessage" style="font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+        Are you sure you want to proceed with this action?
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Cancel</button>
+      <button type="button" class="btn btn-danger btn-sm" id="confirmModalSubmitBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

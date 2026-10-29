@@ -1,0 +1,427 @@
+{% extends "base.html" %}
+
+{% block title %}Application Tracker — PlacementTrack{% endblock %}
+{% block page_title %}Placement Application Tracking{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('analysis') }}" class="btn btn-secondary btn-sm">Conversion Analysis</a>
+<button type="button" class="btn btn-primary btn-sm" data-modal-target="addAppModal">
+  <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+  </svg>
+  <span>Track New Application</span>
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- Stage Application Progress Counter Cards -->
+<div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); margin-bottom: 24px;">
+  <div class="metric-card" style="padding: 15px;">
+    <div class="metric-kicker">Total Tracked</div>
+    <div class="mono-metric" style="font-size: 24px; font-weight: 700; color: var(--text-primary);">
+      {{ total_count }}
+    </div>
+    <div class="metric-subtext">{{ active_count }} active</div>
+  </div>
+
+  <div class="metric-card" style="padding: 15px;">
+    <div class="metric-kicker stage-indicator stage-applied">
+      <span class="stage-dot"></span> Applied
+    </div>
+    <div class="mono-metric" style="font-size: 24px; font-weight: 700; color: var(--accent-blue);">
+      {{ stage_counts['Applied'] }}
+    </div>
+  </div>
+
+  <div class="metric-card" style="padding: 15px;">
+    <div class="metric-kicker stage-indicator stage-shortlisted">
+      <span class="stage-dot"></span> Shortlisted
+    </div>
+    <div class="mono-metric" style="font-size: 24px; font-weight: 700; color: var(--primary);">
+      {{ stage_counts['Shortlisted'] }}
+    </div>
+  </div>
+
+  <div class="metric-card" style="padding: 15px;">
+    <div class="metric-kicker stage-indicator stage-assessment-test">
+      <span class="stage-dot"></span> Assessment/Test
+    </div>
+    <div class="mono-metric" style="font-size: 24px; font-weight: 700; color: var(--accent-amber);">
+      {{ stage_counts['Assessment/Test'] }}
+    </div>
+  </div>
+
+  <div class="metric-card" style="padding: 15px;">
+    <div class="metric-kicker stage-indicator stage-interview">
+      <span class="stage-dot"></span> Interview
+    </div>
+    <div class="mono-metric" style="font-size: 24px; font-weight: 700; color: #8b5cf6;">
+      {{ stage_counts['Interview'] }}
+    </div>
+  </div>
+
+  <div class="metric-card" style="padding: 15px; border-color: #bbf7d0; background: var(--accent-emerald-light);">
+    <div class="metric-kicker stage-indicator stage-selected">
+      <span class="stage-dot"></span> Selected
+    </div>
+    <div class="mono-metric" style="font-size: 24px; font-weight: 700; color: var(--accent-emerald);">
+      {{ stage_counts['Selected'] }}
+    </div>
+  </div>
+
+  <div class="metric-card" style="padding: 15px;">
+    <div class="metric-kicker stage-indicator stage-not-selected">
+      <span class="stage-dot"></span> Not Selected
+    </div>
+    <div class="mono-metric" style="font-size: 24px; font-weight: 700; color: var(--text-muted);">
+      {{ stage_counts['Not Selected'] }}
+    </div>
+  </div>
+</div>
+
+<!-- Search, Stage Filter & Sort Controls -->
+<div class="card" style="margin-bottom: 24px; padding: 14px 20px;">
+  <form method="GET" action="{{ url_for('applications') }}" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+    {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+    <input type="hidden" name="stage" value="{{ stage_filter }}">
+
+    <div style="flex: 1; min-width: 240px; max-width: 360px;">
+      <input 
+        type="text" 
+        name="search" 
+        class="form-control" 
+        placeholder="Search company, role, or notes..." 
+        value="{{ search_query }}"
+      >
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+      <select name="sort" class="form-control" style="width: auto; padding: 7px 10px; font-size: 13px;" onchange="this.form.submit()">
+        <option value="updated_desc" {% if sort_by == 'updated_desc' %}selected{% endif %}>Sort: Recently Updated</option>
+        <option value="date_desc" {% if sort_by == 'date_desc' %}selected{% endif %}>Sort: Date Applied (Newest)</option>
+        <option value="date_asc" {% if sort_by == 'date_asc' %}selected{% endif %}>Sort: Date Applied (Oldest)</option>
+        <option value="company_asc" {% if sort_by == 'company_asc' %}selected{% endif %}>Sort: Company Name (A-Z)</option>
+        <option value="stage_order" {% if sort_by == 'stage_order' %}selected{% endif %}>Sort: Stage Progression</option>
+      </select>
+
+      <button type="submit" class="btn btn-secondary btn-sm">Apply</button>
+      {% if stage_filter != 'All' or search_query or sort_by != 'updated_desc' %}
+        <a href="{{ url_for('applications') }}" class="btn btn-secondary btn-sm" style="color: var(--accent-rose);">Clear Filters</a>
+      {% endif %}
+    </div>
+  </form>
+
+  <!-- Filter by Stage Tabs -->
+  <div style="display: flex; align-items: center; gap: 8px; overflow-x: auto; padding-top: 4px;">
+    <a href="{{ url_for('applications', stage='All', search=search_query, sort=sort_by) }}" 
+       class="btn btn-sm {% if stage_filter == 'All' %}btn-primary{% else %}btn-secondary{% endif %}">
+      All ({{ total_count }})
+    </a>
+    {% for s in application_stages %}
+      <a href="{{ url_for('applications', stage=s, search=search_query, sort=sort_by) }}" 
+         class="btn btn-sm {% if stage_filter == s %}btn-primary{% else %}btn-secondary{% endif %}">
+        {{ s }} ({{ stage_counts[s] }})
+      </a>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Applications Table View -->
+{% if applications %}
+  <div class="card">
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>COMPANY & ROLE</th>
+            <th>CURRENT STAGE</th>
+            <th>QUICK STAGE CHANGE</th>
+            <th>DATE APPLIED</th>
+            <th>INTERVIEW / STATUS NOTES</th>
+            <th style="text-align: right;">ACTIONS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for app in applications %}
+            <tr>
+              <td>
+                <div style="font-weight: 700; color: var(--text-primary);">
+                  {{ app['company_name'] }}
+                </div>
+                <div style="font-size: 13px; color: var(--text-secondary); margin-top: 1px;">{{ app['role'] }}</div>
+                {% if app['company_id'] %}
+                  <div style="margin-top: 3px;">
+                    <a href="{{ url_for('companies', highlight=app['company_id']) }}" style="font-size: 11px; font-weight: 500; color: var(--primary);">
+                      View Linked Campus Drive {% if app['drive_package'] %}({{ app['drive_package'] }}){% endif %} &rarr;
+                    </a>
+                  </div>
+                {% endif %}
+              </td>
+              <td>
+                <div class="stage-indicator stage-{{ app['stage'].lower().replace(' ', '-').replace('/', '-') }}">
+                  <span class="stage-dot"></span>
+                  <span style="font-weight: 600;">{{ app['stage'] }}</span>
+                </div>
+              </td>
+              <td>
+                <form method="POST" action="{{ url_for('update_application_stage', app_id=app['id']) }}" style="display: inline;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <select name="stage" class="form-control" style="width: auto; padding: 4px 8px; font-size: 12px;" onchange="this.form.submit()" aria-label="Change stage for {{ app['company_name'] }}">
+                    {% for s in application_stages %}
+                      <option value="{{ s }}" {% if app['stage'] == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                  </select>
+                </form>
+              </td>
+              <td class="tabular-nums" style="color: var(--text-muted); font-size: 13px;">
+                <div>{{ app['application_date'] or '—' }}</div>
+                <div style="font-size: 11px; color: var(--text-faint);">Updated: {{ app['last_updated'][:10] if app['last_updated'] else '—' }}</div>
+              </td>
+              <td style="color: var(--text-secondary); font-size: 13px; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                {{ app['notes'] or 'No notes recorded' }}
+              </td>
+              <td style="text-align: right; white-space: nowrap;">
+                <button type="button" class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 12px;" data-modal-target="viewAppModal-{{ app['id'] }}">
+                  Details
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 12px;" data-modal-target="editAppModal-{{ app['id'] }}">
+                  Edit
+                </button>
+                <button type="button" class="btn btn-danger btn-sm" style="padding: 4px 8px; font-size: 12px;" data-confirm-form="deleteAppForm-{{ app['id'] }}" data-confirm-title="Delete Application Record" data-confirm-message="Delete application record for '{{ app['company_name'] }} — {{ app['role'] }}'?">
+                  Delete
+                </button>
+              </td>
+            </tr>
+
+            <!-- View Application Details Modal -->
+            <div class="modal-overlay" id="viewAppModal-{{ app['id'] }}">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <div>
+                    <h3 class="card-title">{{ app['company_name'] }}</h3>
+                    <div style="font-size: 13px; color: var(--text-secondary);">{{ app['role'] }}</div>
+                  </div>
+                  <button type="button" class="flash-close" data-modal-close>&times;</button>
+                </div>
+                <div class="modal-body" style="font-size: 14px;">
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: var(--bg-subtle); padding: 14px; border-radius: var(--radius-md); margin-bottom: 16px;">
+                    <div>
+                      <div style="font-size: 11px; color: var(--text-muted);">CURRENT STAGE</div>
+                      <div class="stage-indicator stage-{{ app['stage'].lower().replace(' ', '-').replace('/', '-') }}" style="margin-top: 2px;">
+                        <span class="stage-dot"></span>
+                        <span style="font-weight: 700;">{{ app['stage'] }}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <div style="font-size: 11px; color: var(--text-muted);">APPLICATION DATE</div>
+                      <div class="mono-metric" style="font-weight: 600;">{{ app['application_date'] or '—' }}</div>
+                    </div>
+                    <div>
+                      <div style="font-size: 11px; color: var(--text-muted);">LAST UPDATED</div>
+                      <div class="mono-metric" style="font-size: 12px;">{{ app['last_updated'] or '—' }}</div>
+                    </div>
+                    <div>
+                      <div style="font-size: 11px; color: var(--text-muted);">PACKAGE / CTC</div>
+                      <div class="mono-metric" style="font-weight: 600; color: var(--primary);">{{ app['drive_package'] or 'Not specified' }}</div>
+                    </div>
+                  </div>
+
+                  <div style="margin-bottom: 14px;">
+                    <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px;">INTERVIEW & ASSESSMENT NOTES</div>
+                    <div style="background: #f8fafc; padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-light);">
+                      {{ app['notes'] or 'No notes recorded yet.' }}
+                    </div>
+                  </div>
+
+                  {% if app['company_id'] %}
+                    <div style="border-top: 1px solid var(--border-light); padding-top: 14px;">
+                      <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px;">LINKED CAMPUS PLACEMENT DRIVE</div>
+                      <div class="meta-line" style="margin-bottom: 10px;">
+                        <span>Drive Date: <strong>{{ app['drive_date'] or 'TBD' }}</strong></span>
+                        {% if app['drive_eligibility'] %}
+                          <span class="meta-dot">·</span>
+                          <span>Eligibility: {{ app['drive_eligibility'] }}</span>
+                        {% endif %}
+                      </div>
+                      <a href="{{ url_for('companies', highlight=app['company_id']) }}" class="btn btn-secondary btn-sm">
+                        Open Company Drive Details &rarr;
+                      </a>
+                    </div>
+                  {% endif %}
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Close</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Full Edit Application Modal -->
+            <div class="modal-overlay" id="editAppModal-{{ app['id'] }}">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <div>
+                    <h3 class="card-title">Edit Application Record</h3>
+                    <div style="font-size: 12px; color: var(--text-muted);">{{ app['company_name'] }} — {{ app['role'] }}</div>
+                  </div>
+                  <button type="button" class="flash-close" data-modal-close>&times;</button>
+                </div>
+                <form method="POST" action="{{ url_for('edit_application', app_id=app['id']) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <div class="modal-body">
+                    {% if available_companies %}
+                      <div class="form-group">
+                        <label class="form-label">Linked Campus Drive (Optional)</label>
+                        <select name="company_id" class="form-control">
+                          <option value="">— Standalone Application —</option>
+                          {% for c in available_companies %}
+                            <option value="{{ c['id'] }}" {% if app['company_id'] == c['id'] %}selected{% endif %}>
+                              {{ c['company_name'] }} — {{ c['role'] }}
+                            </option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                    {% endif %}
+
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label class="form-label">Company Name *</label>
+                        <input type="text" name="company_name" class="form-control" value="{{ app['company_name'] }}" required>
+                      </div>
+                      <div class="form-group">
+                        <label class="form-label">Job Role / Position *</label>
+                        <input type="text" name="role" class="form-control" value="{{ app['role'] }}" required>
+                      </div>
+                    </div>
+
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label class="form-label">Recruitment Funnel Stage *</label>
+                        <select name="stage" class="form-control" style="font-weight: 600;">
+                          {% for s in application_stages %}
+                            <option value="{{ s }}" {% if app['stage'] == s %}selected{% endif %}>
+                              {{ s }}
+                            </option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="form-group">
+                        <label class="form-label">Application Date</label>
+                        <input type="date" name="application_date" class="form-control" value="{{ app['application_date'] or '' }}">
+                      </div>
+                    </div>
+
+                    <div class="form-group">
+                      <label class="form-label">Interview Rounds & Assessment Notes</label>
+                      <textarea name="notes" class="form-control" rows="4" placeholder="e.g. Cleared round 1 technical coding. Managerial interview on Friday at 2:00 PM.">{{ app['notes'] or '' }}</textarea>
+                    </div>
+                  </div>
+                  <div class="modal-footer" style="justify-content: space-between;">
+                    <button type="button" class="btn btn-danger btn-sm" data-confirm-form="deleteAppForm-{{ app['id'] }}" data-confirm-title="Delete Application Record" data-confirm-message="Delete application record for '{{ app['company_name'] }} — {{ app['role'] }}'?">
+                      Delete Record
+                    </button>
+                    <div style="display: flex; gap: 8px;">
+                      <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Cancel</button>
+                      <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+                    </div>
+                  </div>
+                </form>
+                <form id="deleteAppForm-{{ app['id'] }}" method="POST" action="{{ url_for('delete_application', app_id=app['id']) }}" style="display: none;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                </form>
+              </div>
+            </div>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% else %}
+  <div class="empty-state">
+    <h4 class="empty-state-title">No Applications Found</h4>
+    <p class="empty-state-desc">Record your first company application to track interview rounds, assessments, and offers.</p>
+    <div style="display: inline-flex; gap: 8px;">
+      <button type="button" class="btn btn-primary btn-sm" data-modal-target="addAppModal">Track New Application</button>
+      {% if stage_filter != 'All' or search_query %}
+        <a href="{{ url_for('applications') }}" class="btn btn-secondary btn-sm">Clear Filters</a>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+{% endblock %}
+
+{% block modals %}
+<!-- Add Application Modal -->
+<div class="modal-overlay" id="addAppModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 class="card-title">Track Campus Placement Application</h3>
+      <button type="button" class="flash-close" data-modal-close>&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('add_application') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="modal-body">
+        {% if available_companies %}
+          <div class="form-group">
+            <label class="form-label" for="add_app_cid">Link to Campus Placement Drive (Optional)</label>
+            <select id="add_app_cid" name="company_id" class="form-control" onchange="autoFillCompany(this)">
+              <option value="">— Standalone Company (Not in Drive Directory) —</option>
+              {% for c in available_companies %}
+                <option value="{{ c['id'] }}" data-name="{{ c['company_name'] }}" data-role="{{ c['role'] }}">
+                  {{ c['company_name'] }} — {{ c['role'] }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+        {% endif %}
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="add_app_cname">Company Name *</label>
+            <input type="text" id="add_app_cname" name="company_name" class="form-control" placeholder="e.g. Atlassian" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="add_app_role">Job Role / Position *</label>
+            <input type="text" id="add_app_role" name="role" class="form-control" placeholder="Associate Software Engineer" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="add_app_stage">Initial Stage *</label>
+            <select id="add_app_stage" name="stage" class="form-control">
+              {% for s in application_stages %}
+                <option value="{{ s }}" {% if s == 'Applied' %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="add_app_date">Application Date</label>
+            <input type="date" id="add_app_date" name="application_date" class="form-control" value="{{ today_iso }}">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="add_app_notes">Application Notes / Process Details</label>
+          <textarea id="add_app_notes" name="notes" class="form-control" rows="3" placeholder="Applied via university portal / Referral code / Online test details..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm">Track Application</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function autoFillCompany(select) {
+  const opt = select.options[select.selectedIndex];
+  if (opt && opt.value) {
+    document.getElementById('add_app_cname').value = opt.getAttribute('data-name') || '';
+    document.getElementById('add_app_role').value = opt.getAttribute('data-role') || '';
+  }
+}
+</script>
+{% endblock %}

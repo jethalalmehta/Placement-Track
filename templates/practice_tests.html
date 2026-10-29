@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+
+{% block title %}Practice Tests & Analytics — PlacementTrack{% endblock %}
+{% block page_title %}Practice Tests & Performance Analytics{% endblock %}
+
+{% block topbar_actions %}
+<button type="button" class="btn btn-primary btn-sm" data-modal-target="addTestModal">
+  <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+  </svg>
+  <span>Log Mock Test</span>
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- Top Metrics Row -->
+<div class="metrics-grid">
+  <div class="metric-card">
+    <div class="metric-kicker">Tests Evaluated</div>
+    <div class="metric-value-row">
+      <span class="metric-number mono-metric">{{ stats['total_tests'] or 0 }}</span>
+      <span style="font-size: 13px; color: var(--text-muted);">mock sets</span>
+    </div>
+    <div class="metric-subtext">Recorded in SQLite database</div>
+  </div>
+
+  <div class="metric-card">
+    <div class="metric-kicker">Cumulative Average</div>
+    <div class="metric-value-row">
+      <span class="metric-number mono-metric" style="color: var(--primary);">
+        {{ "%.1f"|format(stats['avg_pct'] or 0) }}%
+      </span>
+    </div>
+    <div class="metric-subtext">Mean percentage across all tests</div>
+  </div>
+
+  <div class="metric-card">
+    <div class="metric-kicker">Highest Score</div>
+    <div class="metric-value-row">
+      <span class="metric-number mono-metric" style="color: var(--accent-emerald);">
+        {{ "%.1f"|format(stats['highest_pct'] or 0) }}%
+      </span>
+    </div>
+    <div class="metric-subtext">Peak performance benchmark</div>
+  </div>
+
+  <div class="metric-card">
+    <div class="metric-kicker">Lowest Score</div>
+    <div class="metric-value-row">
+      <span class="metric-number mono-metric" style="color: var(--accent-amber);">
+        {{ "%.1f"|format(stats['lowest_pct'] or 0) }}%
+      </span>
+    </div>
+    <div class="metric-subtext">Baseline evaluation recorded</div>
+  </div>
+</div>
+
+<!-- 2-Column Split: Score Trajectory Chart & Topic Performance Breakdown -->
+<div class="split-grid-2">
+  <!-- Left: Trend Graph Canvas -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h3 class="card-title">Score Trajectory Over Time</h3>
+        <p class="card-subtitle">Visual timeline of chronological mock test percentages</p>
+      </div>
+    </div>
+    <div style="height: 240px; width: 100%; position: relative;">
+      <canvas id="scoreTrendCanvas" style="width: 100%; height: 100%;"></canvas>
+    </div>
+  </div>
+
+  <!-- Right: Topic Performance Summaries & Weak Areas Diagnostic -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h3 class="card-title">Topic Performance Breakdown</h3>
+        <p class="card-subtitle">Calculated averages by assessment topic</p>
+      </div>
+    </div>
+
+    {% if category_analytics %}
+      <div id="topicPerformanceChart">
+        {% for cat in category_analytics %}
+          <div style="margin-bottom: 14px;">
+            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
+              <span style="font-weight: 500; color: var(--text-primary);">{{ cat['category'] }}</span>
+              <span class="mono-metric" style="font-weight: 600; color: {% if cat['avg_pct'] >= 80 %}var(--accent-emerald){% elif cat['avg_pct'] >= 65 %}var(--primary){% else %}var(--accent-amber){% endif %};">
+                {{ "%.1f"|format(cat['avg_pct']) }}% 
+                <span style="font-weight: 400; font-size: 11px; color: var(--text-muted);">({{ cat['tests_count'] }} tests)</span>
+              </span>
+            </div>
+            <div class="progress-bar-bg" style="height: 7px;">
+              <div class="progress-bar-fill {% if cat['avg_pct'] >= 80 %}success{% endif %}" style="width: {{ cat['avg_pct']|round|int }}%;"></div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      {% if weak_categories %}
+        <div style="margin-top: 18px; padding: 12px 14px; background: var(--accent-rose-light); border: 1px solid #fecdd3; border-radius: var(--radius-md);">
+          <div style="font-size: 12px; font-weight: 600; color: #9f1239; margin-bottom: 4px;">
+            Diagnostic: Topics Requiring Focused Practice
+          </div>
+          <div style="font-size: 12px; color: #9f1239;">
+            {% for w in weak_categories %}
+              {{ w['category'] }} (Avg: {{ "%.1f"|format(w['avg_pct']) }}%){% if not loop.last %}, {% endif %}
+            {% endfor %}
+            have scores below 80%. Consider scheduling additional revision sessions.
+          </div>
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="empty-state" style="padding: 30px;">
+        <p class="empty-state-desc">No topic averages available yet. Record your first mock test to view topic analytics.</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Test Records Table & Filter Controls -->
+<div class="card">
+  <div class="card-header" style="flex-wrap: wrap; gap: 12px;">
+    <div>
+      <h3 class="card-title">Practice Test Log</h3>
+      <p class="card-subtitle">All evaluated mock assessments and performance notes</p>
+    </div>
+
+    <!-- Search & Sort Form -->
+    <form method="GET" action="{{ url_for('practice_tests') }}" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+      {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+      <input type="hidden" name="category" value="{{ selected_category }}">
+      <input 
+        type="text" 
+        name="search" 
+        class="form-control" 
+        placeholder="Search test title or notes..." 
+        value="{{ search_query }}"
+        style="width: 210px; padding: 6px 12px; font-size: 13px;"
+      >
+      <select name="sort" class="form-control" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="this.form.submit()">
+        <option value="date_desc" {% if sort_by == 'date_desc' %}selected{% endif %}>Sort: Date (Newest)</option>
+        <option value="date_asc" {% if sort_by == 'date_asc' %}selected{% endif %}>Sort: Date (Oldest)</option>
+        <option value="score_desc" {% if sort_by == 'score_desc' %}selected{% endif %}>Sort: Score (Highest)</option>
+        <option value="score_asc" {% if sort_by == 'score_asc' %}selected{% endif %}>Sort: Score (Lowest)</option>
+      </select>
+      <button type="submit" class="btn btn-secondary btn-sm">Search</button>
+      {% if selected_category != 'All' or search_query or sort_by != 'date_desc' %}
+        <a href="{{ url_for('practice_tests') }}" class="btn btn-secondary btn-sm" style="color: var(--accent-rose);">Clear Filters</a>
+      {% endif %}
+    </form>
+  </div>
+
+  <!-- Category Filter Tabs -->
+  <div style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 14px; margin-bottom: 10px;">
+    <a href="{{ url_for('practice_tests', category='All', search=search_query, sort=sort_by) }}" 
+       class="btn btn-sm {% if selected_category == 'All' %}btn-primary{% else %}btn-secondary{% endif %}">
+      All Categories
+    </a>
+    {% for c in categories %}
+      <a href="{{ url_for('practice_tests', category=c, search=search_query, sort=sort_by) }}" 
+         class="btn btn-sm {% if selected_category == c %}btn-primary{% else %}btn-secondary{% endif %}">
+        {{ c }}
+      </a>
+    {% endfor %}
+  </div>
+
+  {% if tests %}
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>TEST / ASSESSMENT TITLE</th>
+            <th>CATEGORY</th>
+            <th>DATE</th>
+            <th>RAW SCORE</th>
+            <th>PERCENTAGE</th>
+            <th>NOTES</th>
+            <th style="text-align: right;">ACTIONS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for test in tests %}
+            <tr>
+              <td style="font-weight: 600;">{{ test['title'] }}</td>
+              <td>{{ test['category'] }}</td>
+              <td class="tabular-nums" style="color: var(--text-muted); font-size: 13px;">{{ test['test_date'] }}</td>
+              <td class="mono-metric tabular-nums">
+                {{ "%.1f"|format(test['score_obtained'])|replace('.0', '') }} / {{ "%.1f"|format(test['max_score'])|replace('.0', '') }}
+              </td>
+              <td>
+                <span class="mono-metric" style="font-weight: 600; color: {% if test['percentage'] >= 80 %}var(--accent-emerald){% elif test['percentage'] >= 65 %}var(--primary){% else %}var(--accent-amber){% endif %};">
+                  {{ test['percentage'] }}%
+                </span>
+              </td>
+              <td style="color: var(--text-secondary); font-size: 13px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                {{ test['notes'] or '—' }}
+              </td>
+              <td style="text-align: right; white-space: nowrap;">
+                <button type="button" class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 12px;" data-modal-target="editTestModal-{{ test['id'] }}">
+                  Edit
+                </button>
+                <button type="button" class="btn btn-danger btn-sm" style="padding: 3px 8px; font-size: 12px;" data-confirm-form="deleteTestForm-{{ test['id'] }}" data-confirm-title="Delete Practice Test" data-confirm-message="Delete practice test record '{{ test['title'] }}'?">
+                  Delete
+                </button>
+              </td>
+            </tr>
+
+            <!-- Edit Test Modal -->
+            <div class="modal-overlay" id="editTestModal-{{ test['id'] }}">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h3 class="card-title">Edit Practice Test Entry</h3>
+                  <button type="button" class="flash-close" data-modal-close>&times;</button>
+                </div>
+                <form method="POST" action="{{ url_for('edit_practice_test', test_id=test['id']) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <div class="modal-body">
+                    <div class="form-group">
+                      <label class="form-label">Test Title *</label>
+                      <input type="text" name="title" class="form-control" value="{{ test['title'] }}" required>
+                    </div>
+
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label class="form-label">Category</label>
+                        <select name="category" class="form-control">
+                          {% for c in categories %}
+                            <option value="{{ c }}" {% if test['category'] == c %}selected{% endif %}>{{ c }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+
+                      <div class="form-group">
+                        <label class="form-label">Test Date *</label>
+                        <input type="date" name="test_date" class="form-control" value="{{ test['test_date'] }}" required>
+                      </div>
+                    </div>
+
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label class="form-label">Score Obtained *</label>
+                        <input type="number" step="0.5" min="0" name="score_obtained" class="form-control" value="{{ test['score_obtained'] }}" required>
+                      </div>
+
+                      <div class="form-group">
+                        <label class="form-label">Maximum Possible Score *</label>
+                        <input type="number" step="0.5" min="1" name="max_score" class="form-control" value="{{ test['max_score'] }}" required>
+                      </div>
+                    </div>
+
+                    <div class="form-group">
+                      <label class="form-label">Analysis Notes & Feedback</label>
+                      <textarea name="notes" class="form-control" rows="3">{{ test['notes'] or '' }}</textarea>
+                    </div>
+                  </div>
+                  <div class="modal-footer" style="justify-content: space-between;">
+                    <button type="button" class="btn btn-danger btn-sm" data-confirm-form="deleteTestForm-{{ test['id'] }}" data-confirm-title="Delete Practice Test" data-confirm-message="Delete practice test record '{{ test['title'] }}'?">
+                      Delete Entry
+                    </button>
+                    <div style="display: flex; gap: 8px;">
+                      <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Cancel</button>
+                      <button type="submit" class="btn btn-primary btn-sm">Update Test</button>
+                    </div>
+                  </div>
+                </form>
+                <form id="deleteTestForm-{{ test['id'] }}" method="POST" action="{{ url_for('delete_practice_test', test_id=test['id']) }}" style="display: none;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                </form>
+              </div>
+            </div>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <h4 class="empty-state-title">No Mock Tests Found</h4>
+      <p class="empty-state-desc">Record your practice test scores to analyze your strengths and identify weak areas.</p>
+      <div style="display: inline-flex; gap: 8px;">
+        <button type="button" class="btn btn-primary btn-sm" data-modal-target="addTestModal">Record First Test</button>
+        {% if selected_category != 'All' or search_query %}
+          <a href="{{ url_for('practice_tests') }}" class="btn btn-secondary btn-sm">Clear Filters</a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- Add Mock Test Modal -->
+<div class="modal-overlay" id="addTestModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 class="card-title">Log Practice Test Assessment</h3>
+      <button type="button" class="flash-close" data-modal-close>&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('add_practice_test') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="add_test_title">Assessment Title *</label>
+          <input type="text" id="add_test_title" name="title" class="form-control" placeholder="e.g. TCS NQT Aptitude Mock 02" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="add_test_cat">Topic / Skill Category *</label>
+            <select id="add_test_cat" name="category" class="form-control">
+              {% for c in categories %}
+                <option value="{{ c }}" {% if selected_category == c %}selected{% endif %}>{{ c }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="add_test_date">Date Attempted *</label>
+            <input type="date" id="add_test_date" name="test_date" class="form-control" value="{{ today_iso }}" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="add_test_score">Score Obtained *</label>
+            <input type="number" step="0.5" min="0" id="add_test_score" name="score_obtained" class="form-control" placeholder="42" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="add_test_max">Maximum Possible Score *</label>
+            <input type="number" step="0.5" min="1" id="add_test_max" name="max_score" class="form-control" placeholder="50" value="50" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="add_test_notes">Notes & Areas for Improvement</label>
+          <textarea id="add_test_notes" name="notes" class="form-control" rows="3" placeholder="Key mistakes, time management, topics that were tricky..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm">Save Assessment</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — Placement Track{% endblock %}
+{% block page_title %}Placement Overview{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('analysis') }}" class="btn btn-secondary btn-sm">
+  <span>Full Analysis</span>
+</a>
+<a href="{{ url_for('placement_hub', tab='explore') }}" class="btn btn-secondary btn-sm">
+  <span>+ Explore Drives</span>
+</a>
+<a href="{{ url_for('performance_analytics') }}" class="btn btn-primary btn-sm">
+  <span>+ Record Marks</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Student Welcome Header -->
+<div style="margin-bottom: 24px; display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+  <div>
+    <h2 style="font-size: 22px; font-weight: 700; color: var(--text-primary);">
+      Hello, {{ current_user['name'].split()[0] }}
+    </h2>
+    <div class="meta-line" style="margin-top: 4px;">
+      {% if current_user['student_id'] %}
+        <span class="mono-metric">ID: {{ current_user['student_id'] }}</span>
+        <span class="meta-dot">·</span>
+      {% endif %}
+      <span>{{ profile['degree'] if profile and profile['degree'] else 'B.Tech' }} {{ profile['branch'] if profile and profile['branch'] else 'CSE' }}</span>
+      <span class="meta-dot">·</span>
+      <span>Batch of {{ profile['graduation_year'] if profile and profile['graduation_year'] else '2026' }}</span>
+      {% if profile and profile['cgpa'] %}
+        <span class="meta-dot">·</span>
+        <span class="mono-metric" style="font-weight: 600; color: var(--primary);">CGPA: {{ profile['cgpa'] }}</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="meta-line" style="background: var(--bg-surface); padding: 8px 14px; border: 1px solid var(--border-light); border-radius: var(--radius-md);">
+    <span style="color: var(--text-muted); font-size: 13px;">Readiness Status:</span>
+    <span style="font-weight: 600; color: {% if task_completion_pct >= 70 %}var(--accent-emerald){% elif task_completion_pct >= 40 %}var(--accent-amber){% else %}var(--text-muted){% endif %};">
+      {% if task_completion_pct >= 70 %}On Track for Day 1 Drives{% elif task_completion_pct >= 40 %}In Active Preparation{% else %}Getting Started{% endif %}
+    </span>
+  </div>
+</div>
+
+<!-- 6 Real Metric Cards Calculated from SQLite Records -->
+<div class="metrics-grid">
+  <!-- 1. Preparation Completion % -->
+  <div class="metric-card">
+    <div class="metric-kicker">Syllabus Completion</div>
+    <div class="metric-value-row">
+      <span class="metric-number mono-metric">{{ task_completion_pct }}%</span>
+    </div>
+    <div class="progress-bar-bg" style="margin-top: 10px; height: 6px;">
+      <div class="progress-bar-fill {% if task_completion_pct >= 75 %}success{% endif %}" style="width: {{ task_completion_pct }}%;"></div>
+    </div>
+    <div class="metric-subtext">
+      {{ completed_tasks }} of {{ total_tasks }} planned tasks finished
+    </div>
+  </div>
+
+  <!-- 2. Preparation Tasks -->
+  <div class="metric-card">
+    <div class="metric-kicker">Preparation Tasks</div>
+    <div class="metric-value-row">
+      <span class="metric-number mono-metric">{{ total_tasks }}</span>
+      <span style="font-size: 13px; color: var(--text-muted);">total</span>
+    </div>
+    <div class="metric-subtext">
+      <span style="color: var(--accent-emerald); font-weight: 600;">{{ completed_tasks }} done</span> · 
+      <span style="color: var(--accent-amber); font-weight: 600;">{{ pending_tasks }} pending</span>
+    </div>
+  </div>
+
+  <!-- 3. Practice Tests Recorded -->
+  <div class="metric-card">
+    <div class="metric-kicker">Mock Tests Logged</div>
+    <div class="metric-value-row">
+      <span class="metric-number mono-metric">{{ total_tests }}</span>
+      <span style="font-size: 13px; color: var(--text-muted);">assessments</span>
+    </div>
+    <div class="metric-subtext">
+      {% if total_tests > 0 %}
+        Across {{ topic_scores|length }} skill topic(s)
+      {% else %}
+        No mock tests recorded yet
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 4. Average Test Score -->
+  <div class="metric-card">
+    <div class="metric-kicker">Average Practice Score</div>
+    <div class="metric-value-row">
+      <span class="metric-number mono-metric" style="color: var(--primary);">
+        {{ avg_score }}%
+      </span>
+    </div>
+    <div class="metric-subtext">
+      {% if total_tests > 0 %}
+        Peak: {{ max_test_score }}% · Low: {{ min_test_score }}%
+      {% else %}
+        Record tests to compute average
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 5. Active Applications -->
+  <div class="metric-card">
+    <div class="metric-kicker">Active Applications</div>
+    <div class="metric-value-row">
+      <span class="metric-number mono-metric" style="color: var(--accent-teal);">
+        {{ active_applications }}
+      </span>
+      <span style="font-size: 13px; color: var(--text-muted);">in progress</span>
+    </div>
+    <div class="metric-subtext">
+      {{ total_applications }} total · <span style="color: var(--accent-emerald); font-weight: 600;">{{ selected_count }} Selected</span> · {{ not_selected_count }} Not Selected
+    </div>
+  </div>
+
+  <!-- 6. Upcoming Drives / Deadlines -->
+  <div class="metric-card">
+    <div class="metric-kicker">Upcoming Campus Drives</div>
+    <div class="metric-value-row">
+      <span class="metric-number mono-metric">{{ upcoming_companies|length }}</span>
+      <span style="font-size: 13px; color: var(--text-muted);">scheduled</span>
+    </div>
+    <div class="metric-subtext">
+      {{ total_companies }} total companies in directory
+    </div>
+  </div>
+</div>
+
+<!-- Main 2-Column Split: Performance Visualization & Category Progress -->
+<div class="split-grid-2">
+  <!-- Left: Mock Test Score Trend Line Chart -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h3 class="card-title">Practice Test Score Trajectory</h3>
+        <p class="card-subtitle">Score percentages over time across all attempted mock tests</p>
+      </div>
+      <a href="{{ url_for('performance_analytics') }}" class="btn btn-secondary btn-sm">Performance Analytics</a>
+    </div>
+
+    <div style="height: 240px; width: 100%; position: relative;">
+      <canvas id="scoreTrendCanvas" style="width: 100%; height: 100%;"></canvas>
+    </div>
+
+    {% if weak_topics %}
+      <div style="margin-top: 16px; padding: 12px 14px; background: var(--accent-rose-light); border: 1px solid #fecdd3; border-radius: var(--radius-md);">
+        <div style="font-size: 12px; font-weight: 600; color: #9f1239; margin-bottom: 4px;">
+          Focus Recommended: Comparatively Lower Recorded Performance
+        </div>
+        <div class="meta-line">
+          {% for w in weak_topics %}
+            <span>{{ w['category'] }}: <strong>{{ "%.1f"|format(w['avg_pct']) }}%</strong> ({{ w['count'] }} test{% if w['count'] != 1 %}s{% endif %})</span>
+            {% if not loop.last %}<span class="meta-dot">·</span>{% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Right: Category-Wise Preparation Progress -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h3 class="card-title">Category Preparation Progress</h3>
+        <p class="card-subtitle">Completion breakdown by placement syllabus domain</p>
+      </div>
+      <a href="{{ url_for('preparation') }}" class="btn btn-secondary btn-sm">Manage Tasks</a>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      {% for cat in category_progress %}
+        <div>
+          <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
+            <span style="font-weight: 500; color: var(--text-primary);">{{ cat.category }}</span>
+            <span class="mono-metric" style="color: var(--text-secondary); font-size: 12px;">
+              {{ cat.completed }}/{{ cat.total }} <span style="font-weight: 600; color: var(--primary);">({{ cat.percentage }}%)</span>
+            </span>
+          </div>
+          <div class="progress-bar-bg" style="height: 6px;">
+            <div class="progress-bar-fill {% if cat.percentage >= 80 %}success{% endif %}" style="width: {{ cat.percentage }}%;"></div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Secondary 2-Column Split: Application Progress & Upcoming Drives -->
+<div class="split-grid-equal">
+  <!-- Application Progress & Conversion Summary -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h3 class="card-title">Application Progress & Conversion</h3>
+        <p class="card-subtitle">Active = Applied + Assessment + Interview + Awaiting Update</p>
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <a href="{{ url_for('analysis') }}" class="btn btn-secondary btn-sm">Analysis</a>
+        <a href="{{ url_for('placement_hub', tab='applications') }}" class="btn btn-primary btn-sm">Placement Hub</a>
+      </div>
+    </div>
+
+    <!-- Stage Blocks Grid -->
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px;">
+      {% for stage, count in stage_counts.items() %}
+        <a href="{{ url_for('placement_hub', tab='applications', stage=stage) }}" style="padding: 12px; background: var(--bg-subtle); border-radius: var(--radius-md); border: 1px solid var(--border-light); text-decoration: none; display: block;">
+          <div class="stage-indicator stage-{{ stage.lower().replace(' ', '-').replace('/', '-') }}" style="margin-bottom: 4px;">
+            <span class="stage-dot"></span>
+            <span>{{ stage }}</span>
+          </div>
+          <div class="mono-metric" style="font-size: 20px; font-weight: 700; color: var(--text-primary);">
+            {{ count }}
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+
+    <!-- Conversion Rate Bar -->
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 10px 12px; background: #f8fafc; border: 1px solid var(--border-light); border-radius: var(--radius-md); margin-bottom: 14px; font-size: 12px;">
+      <div>
+        <div style="color: var(--text-muted);">Selection Rate</div>
+        <div class="mono-metric" style="font-weight: 700; font-size: 15px; color: var(--accent-emerald);">
+          {% if completed_outcomes > 0 %}{{ selection_rate }}%{% else %}N/A{% endif %}
+        </div>
+      </div>
+      <div>
+        <div style="color: var(--text-muted);">Interview Reach</div>
+        <div class="mono-metric" style="font-weight: 700; font-size: 15px; color: var(--primary);">
+          {% if total_applications > 0 %}{{ interview_reach_rate }}%{% else %}0.0%{% endif %}
+        </div>
+      </div>
+      <div>
+        <div style="color: var(--text-muted);">Shortlist Rate</div>
+        <div class="mono-metric" style="font-weight: 700; font-size: 15px; color: var(--accent-teal);">
+          {% if total_applications > 0 %}{{ shortlist_conversion_rate }}%{% else %}0.0%{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Application Statuses -->
+    {% if recent_applications %}
+      <div style="border-top: 1px solid var(--border-light); padding-top: 12px;">
+        <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px;">LATEST APPLICATION ACTIVITY</div>
+        {% for app in recent_applications %}
+          {% set norm_stage = 'Assessment/Test' if app['stage'] == 'Assessment' else app['stage'] %}
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px;">
+            <div>
+              <strong style="color: var(--text-primary);">{{ app['company_name'] }}</strong>
+              <span style="color: var(--text-muted); font-size: 12px; margin-left: 6px;">{{ app['role'] }}</span>
+            </div>
+            <div class="stage-indicator stage-{{ norm_stage.lower().replace(' ', '-').replace('/', '-') }}">
+              <span class="stage-dot"></span>
+              <span>{{ norm_stage }}</span>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state" style="padding: 20px;">
+        <p class="empty-state-desc">Add your first placement application to see your application progress analysis.</p>
+        <a href="{{ url_for('applications') }}" class="btn btn-primary btn-sm">Add First Application</a>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Upcoming Companies & Drives -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h3 class="card-title">Campus Drives & Deadlines</h3>
+        <p class="card-subtitle">Upcoming campus visits and application deadlines</p>
+      </div>
+      <a href="{{ url_for('placement_hub', tab='explore') }}" class="btn btn-secondary btn-sm">Placement Hub</a>
+    </div>
+
+    {% if upcoming_companies %}
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        {% for comp in upcoming_companies %}
+          <div style="padding: 14px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: #ffffff;">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between;">
+              <div>
+                <a href="{{ url_for('placement_hub', tab='explore', highlight=comp['id']) }}" style="font-size: 15px; font-weight: 700; color: var(--text-primary); text-decoration: none;">
+                  {{ comp['company_name'] }}
+                </a>
+                <div style="font-size: 13px; color: var(--text-secondary); margin-top: 2px;">{{ comp['role'] }}</div>
+              </div>
+              {% if comp['package_ctc'] %}
+                <span class="mono-metric" style="font-size: 13px; font-weight: 600; color: var(--primary);">
+                  {{ comp['package_ctc'] }}
+                </span>
+              {% endif %}
+            </div>
+
+            <div class="meta-line" style="margin-top: 10px;">
+              {% if comp['drive_date'] %}
+                <span>Drive Date: <strong>{{ comp['drive_date'] }}</strong></span>
+              {% endif %}
+              {% if comp['deadline'] %}
+                <span class="meta-dot">·</span>
+                <span style="color: var(--accent-amber);">Deadline: {{ comp['deadline'] }}</span>
+              {% endif %}
+              {% if comp['eligibility'] %}
+                <span class="meta-dot">·</span>
+                <span>{{ comp['eligibility'] }}</span>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state" style="padding: 24px;">
+        <p class="empty-state-desc">No upcoming company drives registered yet.</p>
+        <a href="{{ url_for('companies') }}" class="btn btn-secondary btn-sm">Add Company Drive</a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Recent Practice Tests Log Table -->
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h3 class="card-title">Recent Practice Assessments</h3>
+      <p class="card-subtitle">Latest mock assessments evaluated in SQLite</p>
+    </div>
+    <a href="{{ url_for('practice_tests') }}" class="btn btn-secondary btn-sm">View All Tests</a>
+  </div>
+
+  {% if recent_tests %}
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>TEST / ASSESSMENT TITLE</th>
+            <th>CATEGORY</th>
+            <th>DATE</th>
+            <th>SCORE</th>
+            <th>PERCENTAGE</th>
+            <th>OBSERVATIONS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for test in recent_tests %}
+            <tr>
+              <td style="font-weight: 600;">{{ test['title'] }}</td>
+              <td>{{ test['category'] }}</td>
+              <td class="tabular-nums" style="color: var(--text-muted); font-size: 13px;">{{ test['test_date'] }}</td>
+              <td class="mono-metric tabular-nums">
+                {{ "%.1f"|format(test['score_obtained'])|replace('.0', '') }} / {{ "%.1f"|format(test['max_score'])|replace('.0', '') }}
+              </td>
+              <td>
+                <span class="mono-metric" style="font-weight: 600; color: {% if test['percentage'] >= 80 %}var(--accent-emerald){% elif test['percentage'] >= 60 %}var(--primary){% else %}var(--accent-amber){% endif %};">
+                  {{ test['percentage'] }}%
+                </span>
+              </td>
+              <td style="color: var(--text-muted); font-size: 13px; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                {{ test['notes'] or '—' }}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <h4 class="empty-state-title">No Practice Tests Recorded</h4>
+      <p class="empty-state-desc">Record your first mock test or practice set to see performance analytics.</p>
+      <a href="{{ url_for('practice_tests') }}" class="btn btn-primary btn-sm">Log First Mock Test</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

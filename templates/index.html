@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="auth-token" content="{{ auth_token }}">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>Placement Track — Placement Preparation & Tracking System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<!-- Landing Navigation -->
+<header class="landing-header">
+  <a href="{{ url_for('home') }}" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
+    <div class="brand-icon">P</div>
+    <span class="brand-text">Placement Track</span>
+  </a>
+
+  <nav class="landing-nav-links">
+    <a href="#features" class="landing-nav-link">Features</a>
+    <a href="#workflow" class="landing-nav-link">How It Works</a>
+    <a href="#about" class="landing-nav-link">About Project</a>
+  </nav>
+
+  <div style="display: flex; align-items: center; gap: 12px;">
+    {% if current_user %}
+      <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-sm">Open Dashboard ({{ current_user['name'].split()[0] }})</a>
+      <a href="{{ url_for('logout') }}" class="btn btn-secondary btn-sm">Logout</a>
+    {% else %}
+      <a href="{{ url_for('login') }}" class="btn btn-secondary btn-sm">Sign In</a>
+      <a href="{{ url_for('register') }}" class="btn btn-secondary btn-sm">Get Started</a>
+      <a href="{{ url_for('demo_login') }}" class="btn btn-primary btn-sm">Demo</a>
+    {% endif %}
+  </div>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div style="max-width: 720px; margin: 20px auto 0; padding: 0 24px;">
+      {% for category, message in messages %}
+        <div class="flash-message flash-{{ category }}">
+          <span>{{ message }}</span>
+          <button type="button" class="flash-close">&times;</button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<!-- Hero Section -->
+<section class="hero-section">
+  <div class="hero-kicker">
+    <span>B.Tech CSE Placement Management System</span>
+  </div>
+
+  <h1 class="hero-title">Your Placement Journey, Under Control.</h1>
+  
+  <p class="hero-subtitle">
+    The unified workspace for engineering students to master technical subjects, log mock test scores, track campus recruitment drives, and manage application stages from assessment to offer letter.
+  </p>
+
+  <div class="hero-actions">
+    {% if current_user %}
+      <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg">Go to My Dashboard</a>
+      <a href="{{ url_for('analysis') }}" class="btn btn-secondary btn-lg">View Placement Analysis</a>
+    {% else %}
+      <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">Get Started — Free Account</a>
+      <a href="{{ url_for('demo_login') }}" class="btn btn-secondary btn-lg" style="border-color: var(--primary-border); color: var(--primary);">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>Launch Interactive Demo</span>
+      </a>
+    {% endif %}
+  </div>
+
+  <!-- Real Product UI Preview (Interactive Dashboard Card) -->
+  <div class="preview-container">
+    <div class="preview-topbar" style="justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div class="preview-dot" style="background: #ef4444;"></div>
+        <div class="preview-dot" style="background: #f59e0b;"></div>
+        <div class="preview-dot" style="background: #10b981;"></div>
+        <span style="font-size: 12px; color: #64748b; font-family: var(--font-mono); margin-left: 8px;">placement-dashboard.edu · Demo Account: Aarav Sharma (ID: CSE2026001 · 8.85 CGPA)</span>
+      </div>
+      <a href="{{ url_for('demo_login') }}" style="font-size: 12px; font-weight: 600; color: var(--primary);">Open Live Workspace &rarr;</a>
+    </div>
+
+    <div style="padding: 24px; text-align: left; background: #ffffff;">
+      <!-- Mini Metric Strip -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px;">
+        <div style="padding: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;">
+          <div style="font-size: 11px; color: #64748b; font-weight: 500;">Syllabus Completion</div>
+          <div class="mono-metric" style="font-size: 22px; font-weight: 700; color: #0f172a; margin-top: 4px;">50% (5/10 Tasks)</div>
+        </div>
+        <div style="padding: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;">
+          <div style="font-size: 11px; color: #64748b; font-weight: 500;">Average Mock Test Score</div>
+          <div class="mono-metric" style="font-size: 22px; font-weight: 700; color: #4f46e5; margin-top: 4px;">85.3%</div>
+        </div>
+        <div style="padding: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;">
+          <div style="font-size: 11px; color: #64748b; font-weight: 500;">Active Applications</div>
+          <div class="mono-metric" style="font-size: 22px; font-weight: 700; color: #0d9488; margin-top: 4px;">4 In Progress</div>
+        </div>
+        <div style="padding: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;">
+          <div style="font-size: 11px; color: #64748b; font-weight: 500;">Campus Offers</div>
+          <div class="mono-metric" style="font-size: 22px; font-weight: 700; color: #16a34a; margin-top: 4px;">1 Selected (Cisco)</div>
+        </div>
+      </div>
+
+      <!-- Live Mock Split -->
+      <div class="split-grid-2" style="margin-bottom: 0;">
+        <!-- Left: Current Tasks -->
+        <div style="border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px;">
+          <div style="font-size: 13px; font-weight: 600; color: #0f172a; margin-bottom: 12px; display: flex; justify-content: space-between;">
+            <span>Current Preparation Sprint</span>
+            <span style="font-size: 12px; color: #4f46e5;">5 of 10 Completed</span>
+          </div>
+          <div style="font-size: 13px; padding: 8px 10px; background: #f8fafc; border-radius: 6px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
+            <span style="color: #0f172a;">Solve 50 LeetCode Medium Problems on Trees & Graphs</span>
+            <span style="font-size: 11px; color: #d97706; font-weight: 600;">High Priority</span>
+          </div>
+          <div style="font-size: 13px; padding: 8px 10px; background: #f8fafc; border-radius: 6px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
+            <span style="color: #64748b; text-decoration: line-through;">Complete OS Process Synchronization & Semaphores</span>
+            <span style="font-size: 11px; color: #16a34a; font-weight: 600;">Completed</span>
+          </div>
+          <div style="font-size: 13px; padding: 8px 10px; background: #f8fafc; border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
+            <span style="color: #64748b; text-decoration: line-through;">DBMS Normalization (1NF, 2NF, 3NF, BCNF) & Indexing</span>
+            <span style="font-size: 11px; color: #16a34a; font-weight: 600;">Completed</span>
+          </div>
+        </div>
+
+        <!-- Right: Upcoming Drive -->
+        <div style="border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; background: #fafbfc;">
+          <div style="font-size: 13px; font-weight: 600; color: #0f172a; margin-bottom: 10px;">Next Campus Drive</div>
+          <div style="font-weight: 700; font-size: 15px; color: #0f172a;">Microsoft IDC</div>
+          <div style="font-size: 13px; color: #475569;">Software Development Engineer</div>
+          <div class="meta-line" style="margin-top: 8px;">
+            <span>CTC: 44.0 LPA</span>
+            <span class="meta-dot">·</span>
+            <span>Eligibility: CGPA ≥ 8.0</span>
+          </div>
+          <div style="margin-top: 14px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #d97706; font-weight: 600;">
+            Stage: Assessment/Test
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Core Features Section -->
+<section id="features" style="padding: 80px 24px; max-width: 1200px; margin: 0 auto;">
+  <div class="section-heading-center">
+    <div class="hero-kicker" style="margin-bottom: 12px;">Core Architecture</div>
+    <h2 style="font-size: 32px; font-weight: 700; letter-spacing: -0.02em;">Designed for Engineering Students</h2>
+    <p style="color: var(--text-secondary); margin-top: 8px;">
+      Everything required to systematically organize, test, and track your campus recruitment journey.
+    </p>
+  </div>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon-wrapper">
+        <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+        </svg>
+      </div>
+      <h3 class="feature-title">Preparation Tracker</h3>
+      <p class="feature-desc">
+        Organize syllabus into Aptitude, Logical Reasoning, Verbal Ability, Technical Subjects (OS, DBMS, CN), Coding Practice, and Interview Prep with completion tracking.
+      </p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon-wrapper">
+        <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+        </svg>
+      </div>
+      <h3 class="feature-title">Practice Test Analytics</h3>
+      <p class="feature-desc">
+        Log mock assessments with scores, calculate dynamic percentage averages, visualize performance trajectories over time, and isolate weak categories needing revision.
+      </p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon-wrapper">
+        <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+      </div>
+      <h3 class="feature-title">Companies & Drives</h3>
+      <p class="feature-desc">
+        Catalog on-campus and off-campus recruitment opportunities with roles, salary packages (CTC), eligibility criteria, required skillsets, and application deadlines.
+      </p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon-wrapper">
+        <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <h3 class="feature-title">Application Progress & Analysis</h3>
+      <p class="feature-desc">
+        Monitor every application through Applied, Shortlisted, Assessment/Test, Interview, Selected, and Not Selected with real-time conversion analytics.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- How It Works Section -->
+<section id="workflow" class="workflow-section">
+  <div class="workflow-container">
+    <div class="section-heading-center">
+      <div class="hero-kicker" style="margin-bottom: 12px;">Workflow</div>
+      <h2 style="font-size: 32px; font-weight: 700; letter-spacing: -0.02em;">How It Works</h2>
+      <p style="color: var(--text-secondary); margin-top: 8px;">
+        A disciplined 3-step loop that turns scattered preparation into measurable placement readiness.
+      </p>
+    </div>
+
+    <div class="steps-grid">
+      <div class="step-card">
+        <div class="step-number">01</div>
+        <h3 class="step-title">Map Your Curriculum</h3>
+        <p class="step-desc">
+          Add specific topics across core CSE subjects, data structures, and aptitude. Set target completion dates and priority levels to stay focused.
+        </p>
+      </div>
+
+      <div class="step-card">
+        <div class="step-number">02</div>
+        <h3 class="step-title">Record Practice Tests</h3>
+        <p class="step-desc">
+          Log mock test scores from platform assessments (TCS NQT, AMCAT, LeetCode, HackerRank). Review automatic average calculations and topic diagnostics.
+        </p>
+      </div>
+
+      <div class="step-card">
+        <div class="step-number">03</div>
+        <h3 class="step-title">Track Drives & Offers</h3>
+        <p class="step-desc">
+          Add campus recruitment drives with deadlines, transition your status across interview rounds, and analyze conversion rates until offer acceptance.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- About Section -->
+<section id="about" style="padding: 70px 24px; max-width: 900px; margin: 0 auto; text-align: center;">
+  <div class="hero-kicker" style="margin-bottom: 12px;">Academic Context</div>
+  <h2 style="font-size: 28px; font-weight: 700; margin-bottom: 14px;">B.Tech CSE Mini-Project Specification</h2>
+  <p style="color: var(--text-secondary); font-size: 15px; line-height: 1.7; margin-bottom: 24px;">
+    Built strictly in compliance with the approved project synopsis: Python 3.x, Flask backend architecture, Jinja2 template rendering, SQLite relational database with parameterized queries and secure password hashing, and responsive HTML5/CSS3/Vanilla JavaScript.
+  </p>
+  <div style="display: inline-flex; gap: 16px; flex-wrap: wrap; justify-content: center;">
+    <a href="{{ url_for('demo_login') }}" class="btn btn-primary">Launch Live Demo Account</a>
+    <a href="{{ url_for('register') }}" class="btn btn-secondary">Register Student Account</a>
+    <a href="{{ url_for('login') }}" class="btn btn-secondary">Sign In</a>
+  </div>
+</section>
+
+<!-- Minimal Footer -->
+<footer style="background: #ffffff; border-top: 1px solid var(--border-light); padding: 32px 24px; text-align: center; font-size: 13px; color: var(--text-muted);">
+  <div style="max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div class="brand-icon" style="width: 24px; height: 24px; font-size: 12px;">P</div>
+      <span style="font-weight: 600; color: var(--text-primary);">PlacementTrack</span>
+      <span>— Computer Science & Engineering Mini-Project</span>
+    </div>
+    <div>
+      <span>Python Flask · SQLite · Jinja2 · HTML5 · CSS3 · Vanilla JS</span>
+    </div>
+  </div>
+</footer>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

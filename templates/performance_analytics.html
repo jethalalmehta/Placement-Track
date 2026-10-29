@@ -1,0 +1,554 @@
+{% extends "base.html" %}
+
+{% block title %}Performance Analytics — Placement Track{% endblock %}
+{% block page_title %}Performance Analytics{% endblock %}
+
+{% block topbar_actions %}
+<button type="button" class="btn btn-primary btn-sm" data-modal-target="addAssessmentModal">
+  <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+  </svg>
+  <span>+ Record Assessment Marks</span>
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- Summary Header -->
+<div style="margin-bottom: 22px;">
+  <h2 style="font-size: 22px; font-weight: 700; color: var(--text-primary);">Academic & Mock Test Performance</h2>
+  <p style="font-size: 14px; color: var(--text-muted); margin-top: 2px;">
+    Track test results, automatically diagnose weak topics across placement subjects, and follow your personalized improvement plan.
+  </p>
+</div>
+
+<!-- 4 Key Performance Metric Cards -->
+<div class="metrics-grid">
+  <!-- Card 1: Total Assessments -->
+  <div class="metric-card">
+    <div class="metric-kicker">Total Assessments</div>
+    <div class="metric-value-row">
+      <span class="metric-number mono-metric">{{ total_assessments }}</span>
+      <span style="font-size: 13px; color: var(--text-muted);">recorded</span>
+    </div>
+    <div class="metric-subtext">Stored persistently in database</div>
+  </div>
+
+  <!-- Card 2: Cumulative Average -->
+  <div class="metric-card">
+    <div class="metric-kicker">Overall Average Score</div>
+    <div class="metric-value-row">
+      <span class="metric-number mono-metric" style="color: var(--primary);">
+        {{ overall_avg }}%
+      </span>
+    </div>
+    <div class="metric-subtext">
+      {% if total_assessments > 0 %}
+        Peak: {{ highest_score }}% · Lowest: {{ lowest_score }}%
+      {% else %}
+        Record tests to calculate mean
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Card 3: Strongest Topic -->
+  <div class="metric-card">
+    <div class="metric-kicker">Strongest Topic</div>
+    <div class="metric-value-row" style="margin-top: 4px;">
+      <span style="font-size: 17px; font-weight: 700; color: var(--accent-emerald);">
+        {{ strongest_topic or 'N/A' }}
+      </span>
+    </div>
+    <div class="metric-subtext">Highest recorded topic average</div>
+  </div>
+
+  <!-- Card 4: Weakest Topic / Priority Area -->
+  <div class="metric-card">
+    <div class="metric-kicker">Focus Priority Area</div>
+    <div class="metric-value-row" style="margin-top: 4px;">
+      <span style="font-size: 17px; font-weight: 700; color: {% if weakest_topic %}var(--accent-rose){% else %}var(--text-muted){% endif %};">
+        {{ weakest_topic or 'None' }}
+      </span>
+    </div>
+    <div class="metric-subtext">Lowest average topic score</div>
+  </div>
+</div>
+
+<!-- ========================================== -->
+<!-- WEAK TOPIC DIAGNOSTIC & IMPROVEMENT PLAN   -->
+<!-- ========================================== -->
+<div class="split-grid-2" style="margin-bottom: 24px;">
+  <!-- Left: Automatic Weak-Topic Analysis Ranked Lowest to Highest -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h3 class="card-title">Automatic Weak-Topic Analysis</h3>
+        <p class="card-subtitle">Topics ranked from lowest to highest performance using academic thresholds</p>
+      </div>
+    </div>
+
+    {% if topic_analytics %}
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        {% for t in topic_analytics %}
+          <div style="padding: 14px 16px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: #ffffff;">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px;">
+              <div>
+                <strong style="font-size: 15px; color: var(--text-primary);">{{ t.topic }}</strong>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">{{ t.category }}</div>
+              </div>
+
+              <!-- Recommendation Priority Badge -->
+              <span class="badge {{ t.badge_class }}" style="font-size: 12px; font-weight: 600; padding: 4px 9px;">
+                {{ t.priority }}
+              </span>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress-bar-bg" style="height: 7px; margin-bottom: 10px;">
+              <div class="progress-bar-fill {% if t.avg_pct >= 80 %}success{% endif %}" style="width: {{ t.avg_pct|round|int }}%;"></div>
+            </div>
+
+            <!-- Metrics Row: Latest Score, Avg %, Attempts, Trend -->
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 12px; background: #f8fafc; padding: 8px 10px; border-radius: var(--radius-sm);">
+              <div>
+                <span style="color: var(--text-muted);">Average:</span>
+                <div class="mono-metric" style="font-weight: 700; font-size: 13px; color: var(--text-primary);">{{ t.avg_pct }}%</div>
+              </div>
+              <div>
+                <span style="color: var(--text-muted);">Latest:</span>
+                <div class="mono-metric" style="font-weight: 700; font-size: 13px; color: var(--primary);">{{ t.latest_score }}%</div>
+              </div>
+              <div>
+                <span style="color: var(--text-muted);">Attempts:</span>
+                <div class="mono-metric" style="font-weight: 600; font-size: 13px;">{{ t.count }}</div>
+              </div>
+              <div>
+                <span style="color: var(--text-muted);">Trend:</span>
+                <div style="font-weight: 600; font-size: 12px; color: {% if t.trend_direction == 'up' %}var(--accent-emerald){% elif t.trend_direction == 'down' %}var(--accent-rose){% else %}var(--text-muted){% endif %};">
+                  {{ t.trend }}
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state" style="padding: 32px 16px; text-align: center;">
+        <p style="color: var(--text-muted); font-size: 14px;">No assessment records logged yet to diagnose weak topics.</p>
+        <button type="button" class="btn btn-primary btn-sm" style="margin-top: 10px;" data-modal-target="addAssessmentModal">+ Record First Test Marks</button>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Right: Your Improvement Plan (Personalized Recommendations) -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h3 class="card-title">Your Improvement Plan</h3>
+        <p class="card-subtitle">Personalized academic guidance generated from your recorded performance</p>
+      </div>
+    </div>
+
+    {% if recommendations %}
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        {% for rec in recommendations %}
+          <div style="padding: 14px; border-left: 4px solid {% if rec.priority == 'High Priority' %}#e11d48{% elif rec.priority == 'Needs Improvement' %}#d97706{% elif rec.priority == 'Improving' %}#0284c7{% else %}#16a34a{% endif %}; background: #ffffff; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; box-shadow: var(--shadow-sm); border-top: 1px solid var(--border-light); border-right: 1px solid var(--border-light); border-bottom: 1px solid var(--border-light);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+              <strong style="color: var(--text-primary); font-size: 14px;">
+                {{ rec.topic }} — <span style="font-weight: 600;">{{ rec.priority }}</span>
+              </strong>
+              <span class="mono-metric" style="font-size: 13px; font-weight: 700; color: var(--primary);">
+                {{ rec.avg_pct }}%
+              </span>
+            </div>
+            <p style="font-size: 13px; color: var(--text-secondary); margin: 0; line-height: 1.45;">
+              {{ rec.advice }}
+            </p>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state" style="padding: 32px 16px; text-align: center;">
+        <p style="color: var(--text-muted); font-size: 14px;">Record test marks to generate your custom improvement plan.</p>
+      </div>
+    {% endif %}
+
+    <!-- Threshold Legend -->
+    <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-light); font-size: 12px; color: var(--text-muted);">
+      <div style="font-weight: 600; margin-bottom: 6px; color: var(--text-secondary);">Academic Diagnostic Thresholds:</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+        <div><span class="badge badge-danger" style="font-size: 10px;">Below 40%</span> High Priority</div>
+        <div><span class="badge badge-warning" style="font-size: 10px;">40%–59%</span> Needs Improvement</div>
+        <div><span class="badge badge-info" style="font-size: 10px;">60%–79%</span> Improving</div>
+        <div><span class="badge badge-success" style="font-size: 10px;">80%+</span> Strong Topic</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================================== -->
+<!-- VISUAL CHARTS ROW                          -->
+<!-- ========================================== -->
+<div class="split-grid-2" style="margin-bottom: 24px;">
+  <!-- Left: Chronological Score Trajectory Chart -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h3 class="card-title">Assessment Score Trajectory</h3>
+        <p class="card-subtitle">Chronological score progression across recorded tests</p>
+      </div>
+    </div>
+    <div style="height: 240px; width: 100%; position: relative;">
+      <canvas id="scoreTrendCanvas" style="width: 100%; height: 100%;"></canvas>
+    </div>
+  </div>
+
+  <!-- Right: Category Performance Breakdown -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h3 class="card-title">Subject / Category Breakdown</h3>
+        <p class="card-subtitle">Overall score averages grouped by subject domain</p>
+      </div>
+    </div>
+
+    {% if category_summary %}
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        {% for cat in category_summary %}
+          <div>
+            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
+              <span style="font-weight: 500; color: var(--text-primary);">{{ cat.category }}</span>
+              <span class="mono-metric" style="font-weight: 600; color: {% if cat.avg_pct >= 80 %}var(--accent-emerald){% elif cat.avg_pct >= 60 %}var(--primary){% else %}var(--accent-amber){% endif %};">
+                {{ cat.avg_pct }}% <span style="font-weight: 400; font-size: 11px; color: var(--text-muted);">({{ cat.count }} assessment{% if cat.count != 1 %}s{% endif %})</span>
+              </span>
+            </div>
+            <div class="progress-bar-bg" style="height: 7px;">
+              <div class="progress-bar-fill {% if cat.avg_pct >= 80 %}success{% endif %}" style="width: {{ cat.avg_pct|round|int }}%;"></div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state" style="padding: 24px; text-align: center;">
+        <p style="color: var(--text-muted); font-size: 13px;">No category data yet.</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ========================================== -->
+<!-- ASSESSMENT RECORDS TABLE & FILTER CONTROLS -->
+<!-- ========================================== -->
+<div class="card" style="margin-bottom: 24px;">
+  <div class="card-header" style="flex-wrap: wrap; gap: 12px;">
+    <div>
+      <h3 class="card-title">Recorded Assessment Marks</h3>
+      <p class="card-subtitle">Complete log of student marks, dates, and percentages</p>
+    </div>
+
+    <!-- Search & Filter Controls -->
+    <form method="GET" action="{{ url_for('performance_analytics') }}" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+      {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+
+      <input 
+        type="text" 
+        name="search" 
+        class="form-control" 
+        placeholder="Search assessment or topic..." 
+        value="{{ search_query }}"
+        style="width: 200px; padding: 6px 10px; font-size: 13px;"
+      >
+
+      <select name="category" class="form-control" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="this.form.submit()">
+        <option value="All" {% if selected_category == 'All' %}selected{% endif %}>Category: All</option>
+        {% for cat in categories %}
+          <option value="{{ cat }}" {% if selected_category == cat %}selected{% endif %}>{{ cat }}</option>
+        {% endfor %}
+      </select>
+
+      <select name="sort" class="form-control" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="this.form.submit()">
+        <option value="date_desc" {% if sort_by == 'date_desc' %}selected{% endif %}>Date: Newest First</option>
+        <option value="date_asc" {% if sort_by == 'date_asc' %}selected{% endif %}>Date: Oldest First</option>
+        <option value="score_desc" {% if sort_by == 'score_desc' %}selected{% endif %}>Score: High to Low</option>
+        <option value="score_asc" {% if sort_by == 'score_asc' %}selected{% endif %}>Score: Low to High</option>
+        <option value="topic" {% if sort_by == 'topic' %}selected{% endif %}>Topic (A-Z)</option>
+      </select>
+
+      <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
+      {% if search_query or selected_category != 'All' or sort_by != 'date_desc' %}
+        <a href="{{ url_for('performance_analytics') }}" class="btn btn-secondary btn-sm" style="color: var(--accent-rose);">Reset</a>
+      {% endif %}
+    </form>
+  </div>
+
+  {% if tests %}
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px; text-align: left;">
+        <thead>
+          <tr style="background: #f8fafc; border-bottom: 1px solid var(--border-light); color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em;">
+            <th style="padding: 12px 16px;">Test / Assessment Name</th>
+            <th style="padding: 12px 16px;">Subject</th>
+            <th style="padding: 12px 16px;">Topic</th>
+            <th style="padding: 12px 16px;">Marks Obtained</th>
+            <th style="padding: 12px 16px;">Percentage</th>
+            <th style="padding: 12px 16px;">Date</th>
+            <th style="padding: 12px 16px; text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tests %}
+            <tr style="border-bottom: 1px solid #f1f5f9;">
+              <td style="padding: 12px 16px;">
+                <strong style="color: var(--text-primary);">{{ t.title }}</strong>
+                {% if t.notes %}
+                  <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">{{ t.notes }}</div>
+                {% endif %}
+              </td>
+              <td style="padding: 12px 16px; color: var(--text-secondary);">
+                {{ t.category }}
+              </td>
+              <td style="padding: 12px 16px; font-weight: 500; color: var(--text-primary);">
+                {{ t.topic or t.title }}
+              </td>
+              <td style="padding: 12px 16px;">
+                <span class="mono-metric" style="font-weight: 600;">{{ t.score_obtained }}</span> / <span class="mono-metric" style="color: var(--text-muted);">{{ t.max_score }}</span>
+              </td>
+              <td style="padding: 12px 16px;">
+                <span class="mono-metric" style="font-weight: 700; color: {% if t.percentage >= 80 %}var(--accent-emerald){% elif t.percentage >= 60 %}var(--primary){% elif t.percentage >= 40 %}var(--accent-amber){% else %}var(--accent-rose){% endif %};">
+                  {{ t.percentage }}%
+                </span>
+              </td>
+              <td style="padding: 12px 16px; color: var(--text-muted);">
+                {{ t.test_date }}
+              </td>
+              <td style="padding: 12px 16px; text-align: right;">
+                <div style="display: inline-flex; gap: 6px;">
+                  <button type="button" class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px;"
+                          data-modal-target="editAssessmentModal"
+                          data-test-id="{{ t.id }}"
+                          data-title="{{ t.title }}"
+                          data-category="{{ t.category }}"
+                          data-topic="{{ t.topic or t.title }}"
+                          data-score="{{ t.score_obtained }}"
+                          data-max="{{ t.max_score }}"
+                          data-date="{{ t.test_date }}"
+                          data-notes="{{ t.notes or '' }}"
+                          onclick="populateEditAssessmentModal(this)">
+                    Edit
+                  </button>
+                  <form id="delTestForm-{{ t.id }}" method="POST" action="{{ url_for('delete_performance_test', test_id=t.id) }}" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+                    <button type="button" class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px; color: var(--accent-rose);"
+                            data-confirm-form="delTestForm-{{ t.id }}"
+                            data-confirm-title="Delete Assessment Record"
+                            data-confirm-message="Are you sure you want to delete '{{ t.title }}' ({{ t.percentage }}%)?">
+                      Delete
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state" style="padding: 36px 16px; text-align: center;">
+      <p style="color: var(--text-muted); font-size: 14px;">No assessment records found.</p>
+    </div>
+  {% endif %}
+</div>
+
+<!-- ========================================== -->
+<!-- MODALS                                     -->
+<!-- ========================================== -->
+
+<!-- Modal: Record Assessment Marks -->
+<div class="modal-overlay" id="addAssessmentModal">
+  <div class="modal-content" style="max-width: 500px;">
+    <div class="modal-header">
+      <h3 class="modal-title">Record Assessment Marks</h3>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('add_performance_test') }}">
+      <div class="modal-body">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+
+        <div class="form-group">
+          <label class="form-label">Test or Assessment Name *</label>
+          <input type="text" name="title" class="form-control" required placeholder="e.g. TCS NQT National Mock Aptitude">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Subject / Category *</label>
+            <select name="category" class="form-control" required>
+              <option value="Quantitative Aptitude">Quantitative Aptitude</option>
+              <option value="Logical Reasoning">Logical Reasoning</option>
+              <option value="Verbal Ability">Verbal Ability</option>
+              <option value="Technical Knowledge">Technical Knowledge</option>
+              <option value="Coding Practice">Coding Practice</option>
+              <option value="Interview Preparation">Interview Preparation</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Specific Topic *</label>
+            <input type="text" name="topic" class="form-control" required placeholder="e.g. Percentages & Profit-Loss">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Marks Obtained *</label>
+            <input type="number" step="0.5" min="0" id="add_obtained" name="score_obtained" class="form-control" required placeholder="42" oninput="calculateAddPercentage()">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Maximum Marks *</label>
+            <input type="number" step="0.5" min="1" id="add_max" name="max_score" class="form-control" required value="50" oninput="calculateAddPercentage()">
+          </div>
+        </div>
+
+        <!-- Automatic Percentage Display -->
+        <div style="background: #eef2ff; border: 1px solid #c7d2fe; padding: 10px 14px; border-radius: var(--radius-sm); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-size: 13px; color: #3730a3; font-weight: 500;">Calculated Percentage:</span>
+          <span id="add_percentage_display" class="mono-metric" style="font-size: 16px; font-weight: 700; color: var(--primary);">
+            84.00%
+          </span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Assessment Date</label>
+          <input type="date" name="test_date" class="form-control" value="{{ today }}">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Optional Notes</label>
+          <textarea name="notes" class="form-control" rows="2" placeholder="Speed in profit and loss calculations was slightly low, accuracy 90%."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Assessment</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Edit Assessment Record -->
+<div class="modal-overlay" id="editAssessmentModal">
+  <div class="modal-content" style="max-width: 500px;">
+    <div class="modal-header">
+      <h3 class="modal-title">Edit Assessment Record</h3>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form id="editAssessmentForm" method="POST" action="">
+      <div class="modal-body">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+
+        <div class="form-group">
+          <label class="form-label">Test or Assessment Name *</label>
+          <input type="text" id="edit_title" name="title" class="form-control" required>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Subject / Category *</label>
+            <select id="edit_category" name="category" class="form-control" required>
+              <option value="Quantitative Aptitude">Quantitative Aptitude</option>
+              <option value="Logical Reasoning">Logical Reasoning</option>
+              <option value="Verbal Ability">Verbal Ability</option>
+              <option value="Technical Knowledge">Technical Knowledge</option>
+              <option value="Coding Practice">Coding Practice</option>
+              <option value="Interview Preparation">Interview Preparation</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Specific Topic *</label>
+            <input type="text" id="edit_topic" name="topic" class="form-control" required>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Marks Obtained *</label>
+            <input type="number" step="0.5" min="0" id="edit_obtained" name="score_obtained" class="form-control" required oninput="calculateEditPercentage()">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Maximum Marks *</label>
+            <input type="number" step="0.5" min="1" id="edit_max" name="max_score" class="form-control" required oninput="calculateEditPercentage()">
+          </div>
+        </div>
+
+        <!-- Automatic Percentage Display -->
+        <div style="background: #eef2ff; border: 1px solid #c7d2fe; padding: 10px 14px; border-radius: var(--radius-sm); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-size: 13px; color: #3730a3; font-weight: 500;">Calculated Percentage:</span>
+          <span id="edit_percentage_display" class="mono-metric" style="font-size: 16px; font-weight: 700; color: var(--primary);">
+            --%
+          </span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Assessment Date</label>
+          <input type="date" id="edit_date" name="test_date" class="form-control">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Optional Notes</label>
+          <textarea id="edit_notes" name="notes" class="form-control" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function calculateAddPercentage() {
+  const obtained = parseFloat(document.getElementById('add_obtained').value);
+  const max = parseFloat(document.getElementById('add_max').value);
+  const display = document.getElementById('add_percentage_display');
+  if (!isNaN(obtained) && !isNaN(max) && max > 0 && obtained >= 0) {
+    const pct = ((obtained / max) * 100).toFixed(2);
+    display.textContent = pct + '%';
+  } else {
+    display.textContent = '--%';
+  }
+}
+
+function calculateEditPercentage() {
+  const obtained = parseFloat(document.getElementById('edit_obtained').value);
+  const max = parseFloat(document.getElementById('edit_max').value);
+  const display = document.getElementById('edit_percentage_display');
+  if (!isNaN(obtained) && !isNaN(max) && max > 0 && obtained >= 0) {
+    const pct = ((obtained / max) * 100).toFixed(2);
+    display.textContent = pct + '%';
+  } else {
+    display.textContent = '--%';
+  }
+}
+
+function populateEditAssessmentModal(btn) {
+  const testId = btn.getAttribute('data-test-id');
+  const form = document.getElementById('editAssessmentForm');
+  form.action = '/performance-analytics/' + testId + '/edit';
+
+  document.getElementById('edit_title').value = btn.getAttribute('data-title') || '';
+  document.getElementById('edit_category').value = btn.getAttribute('data-category') || 'Quantitative Aptitude';
+  document.getElementById('edit_topic').value = btn.getAttribute('data-topic') || '';
+  document.getElementById('edit_obtained').value = btn.getAttribute('data-score') || '';
+  document.getElementById('edit_max').value = btn.getAttribute('data-max') || '100';
+  document.getElementById('edit_date').value = btn.getAttribute('data-date') || '';
+  document.getElementById('edit_notes').value = btn.getAttribute('data-notes') || '';
+  calculateEditPercentage();
+}
+</script>
+{% endblock %}

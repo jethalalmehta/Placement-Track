@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+
+{% block title %}Preparation Tracker — PlacementTrack{% endblock %}
+{% block page_title %}Placement Preparation Tracker{% endblock %}
+
+{% block topbar_actions %}
+<button type="button" class="btn btn-primary btn-sm" data-modal-target="addTaskModal">
+  <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+  </svg>
+  <span>Add Preparation Task</span>
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- Top Category Progress Meters Strip -->
+<div style="margin-bottom: 24px;">
+  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+    <div>
+      <h3 style="font-size: 15px; font-weight: 600; color: var(--text-primary);">Placement Syllabus Coverage</h3>
+      <p style="font-size: 12px; color: var(--text-muted);" id="liveTaskCountText">
+        {{ completed_count }} of {{ total_count }} tasks completed
+      </p>
+    </div>
+    <div class="mono-metric" style="font-size: 18px; font-weight: 700; color: var(--primary);" id="liveTaskPercentage">
+      {% if total_count > 0 %}{{ (completed_count / total_count * 100)|round|int }}%{% else %}0%{% endif %}
+    </div>
+  </div>
+
+  <div class="progress-bar-bg" style="height: 8px; margin-bottom: 16px;">
+    <div id="liveTaskProgressBar" class="progress-bar-fill {% if total_count > 0 and (completed_count / total_count * 100) >= 75 %}success{% endif %}" 
+         style="width: {% if total_count > 0 %}{{ (completed_count / total_count * 100)|round|int }}%{% else %}0%{% endif %};">
+    </div>
+  </div>
+
+  <!-- Category Filter Tabs -->
+  <div style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px;">
+    <a href="{{ url_for('preparation', category='All', status=selected_status, priority=selected_priority, search=search_query, sort=sort_by) }}" 
+       class="btn btn-sm {% if selected_category == 'All' %}btn-primary{% else %}btn-secondary{% endif %}">
+      All Domains ({{ total_count }})
+    </a>
+    {% for cat in category_progress %}
+      <a href="{{ url_for('preparation', category=cat.category, status=selected_status, priority=selected_priority, search=search_query, sort=sort_by) }}" 
+         class="btn btn-sm {% if selected_category == cat.category %}btn-primary{% else %}btn-secondary{% endif %}">
+        {{ cat.category }} 
+        <span data-cat-counter="{{ cat.category }}" style="opacity: 0.8; font-size: 11px;">({{ cat.completed }}/{{ cat.total }})</span>
+      </a>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Search, Status, Priority & Sort Controls -->
+<div class="card" style="margin-bottom: 20px; padding: 14px 20px;">
+  <form method="GET" action="{{ url_for('preparation') }}" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+    {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+    <input type="hidden" name="category" value="{{ selected_category }}">
+
+    <!-- Status Segmented Controls -->
+    <div class="filter-tabs">
+      <a href="{{ url_for('preparation', category=selected_category, status='All', priority=selected_priority, search=search_query, sort=sort_by) }}" 
+         class="filter-tab {% if selected_status == 'All' %}active{% endif %}">
+        All Tasks
+      </a>
+      <a href="{{ url_for('preparation', category=selected_category, status='pending', priority=selected_priority, search=search_query, sort=sort_by) }}" 
+         class="filter-tab {% if selected_status == 'pending' %}active{% endif %}">
+        Pending
+      </a>
+      <a href="{{ url_for('preparation', category=selected_category, status='completed', priority=selected_priority, search=search_query, sort=sort_by) }}" 
+         class="filter-tab {% if selected_status == 'completed' %}active{% endif %}">
+        Completed
+      </a>
+    </div>
+
+    <!-- Search, Priority & Sort -->
+    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+      <input type="hidden" name="status" value="{{ selected_status }}">
+      <input 
+        type="text" 
+        name="search" 
+        class="form-control" 
+        placeholder="Search task or topic..." 
+        value="{{ search_query }}"
+        style="width: 200px; padding: 6px 12px; font-size: 13px;"
+      >
+
+      <select name="priority" class="form-control" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="this.form.submit()">
+        <option value="All" {% if selected_priority == 'All' %}selected{% endif %}>All Priorities</option>
+        <option value="High" {% if selected_priority == 'High' %}selected{% endif %}>High Priority</option>
+        <option value="Medium" {% if selected_priority == 'Medium' %}selected{% endif %}>Medium Priority</option>
+        <option value="Low" {% if selected_priority == 'Low' %}selected{% endif %}>Low Priority</option>
+      </select>
+
+      <select name="sort" class="form-control" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="this.form.submit()">
+        <option value="default" {% if sort_by == 'default' %}selected{% endif %}>Sort: Priority & Status</option>
+        <option value="due_date" {% if sort_by == 'due_date' %}selected{% endif %}>Sort: Target Date</option>
+        <option value="priority" {% if sort_by == 'priority' %}selected{% endif %}>Sort: Priority Only</option>
+        <option value="title" {% if sort_by == 'title' %}selected{% endif %}>Sort: Title (A-Z)</option>
+      </select>
+
+      <button type="submit" class="btn btn-secondary btn-sm">Apply</button>
+      {% if selected_category != 'All' or selected_status != 'All' or selected_priority != 'All' or search_query or sort_by != 'default' %}
+        <a href="{{ url_for('preparation') }}" class="btn btn-secondary btn-sm" style="color: var(--accent-rose);">Clear Filters</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<!-- Task List View -->
+{% if tasks %}
+  <div style="display: flex; flex-direction: column; gap: 8px;">
+    {% for task in tasks %}
+      <div class="task-item {% if task['status'] == 'completed' %}completed{% endif %}" id="task-card-{{ task['id'] }}">
+        <!-- Instant Async Checkbox Toggle -->
+        <button 
+          type="button"
+          class="task-checkbox-btn {% if task['status'] == 'completed' %}checked{% endif %}"
+          data-task-id="{{ task['id'] }}"
+          title="Mark completed / pending"
+          aria-label="Toggle task status"
+        >
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+          </svg>
+        </button>
+        <form id="toggleTaskForm-{{ task['id'] }}" method="POST" action="{{ url_for('toggle_preparation_task_form', task_id=task['id']) }}" style="display: none;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        </form>
+
+        <div style="flex: 1; min-width: 0;">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+            <div class="task-title" style="font-size: 15px; font-weight: 600; color: var(--text-primary);">
+              {{ task['title'] }}
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 8px;">
+              {% if task['priority'] == 'High' %}
+                <span style="font-size: 12px; font-weight: 600; color: var(--accent-rose);">High Priority</span>
+              {% elif task['priority'] == 'Medium' %}
+                <span style="font-size: 12px; font-weight: 500; color: var(--accent-amber);">Medium</span>
+              {% else %}
+                <span style="font-size: 12px; color: var(--text-muted);">Low</span>
+              {% endif %}
+
+              <button type="button" class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 12px;" data-modal-target="editTaskModal-{{ task['id'] }}">
+                Edit
+              </button>
+              <button type="button" class="btn btn-danger btn-sm" style="padding: 3px 8px; font-size: 12px;" data-confirm-form="deleteTaskForm-{{ task['id'] }}" data-confirm-title="Delete Preparation Task" data-confirm-message="Delete preparation task '{{ task['title'] }}'?">
+                Delete
+              </button>
+            </div>
+          </div>
+
+          <div class="meta-line" style="margin-top: 6px;">
+            <span style="font-weight: 500; color: var(--primary);">{{ task['category'] }}</span>
+            <span class="meta-dot">·</span>
+            <span>Status: <strong class="task-status-text">{{ task['status']|capitalize }}</strong></span>
+            {% if task['due_date'] %}
+              <span class="meta-dot">·</span>
+              <span class="tabular-nums">Target: {{ task['due_date'] }}</span>
+            {% endif %}
+            {% if task['notes'] %}
+              <span class="meta-dot">·</span>
+              <span style="color: var(--text-secondary);">
+                {{ task['notes'] }}
+              </span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Edit Task Modal for this task -->
+      <div class="modal-overlay" id="editTaskModal-{{ task['id'] }}">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3 class="card-title">Edit Preparation Task</h3>
+            <button type="button" class="flash-close" data-modal-close>&times;</button>
+          </div>
+          <form method="POST" action="{{ url_for('edit_preparation_task', task_id=task['id']) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="modal-body">
+              <div class="form-group">
+                <label class="form-label">Task Title *</label>
+                <input type="text" name="title" class="form-control" value="{{ task['title'] }}" required>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Category</label>
+                  <select name="category" class="form-control">
+                    {% for c in categories %}
+                      <option value="{{ c }}" {% if task['category'] == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Priority</label>
+                  <select name="priority" class="form-control">
+                    <option value="High" {% if task['priority'] == 'High' %}selected{% endif %}>High</option>
+                    <option value="Medium" {% if task['priority'] == 'Medium' %}selected{% endif %}>Medium</option>
+                    <option value="Low" {% if task['priority'] == 'Low' %}selected{% endif %}>Low</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Status</label>
+                  <select name="status" class="form-control">
+                    <option value="pending" {% if task['status'] == 'pending' %}selected{% endif %}>Pending</option>
+                    <option value="completed" {% if task['status'] == 'completed' %}selected{% endif %}>Completed</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Target Completion Date</label>
+                  <input type="date" name="due_date" class="form-control" value="{{ task['due_date'] or '' }}">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Study Notes / Reference Links</label>
+                <textarea name="notes" class="form-control" rows="3">{{ task['notes'] or '' }}</textarea>
+              </div>
+            </div>
+            <div class="modal-footer" style="justify-content: space-between;">
+              <button type="button" class="btn btn-danger btn-sm" data-confirm-form="deleteTaskForm-{{ task['id'] }}" data-confirm-title="Delete Preparation Task" data-confirm-message="Delete preparation task '{{ task['title'] }}'?">
+                Delete Task
+              </button>
+              <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+              </div>
+            </div>
+          </form>
+          <form id="deleteTaskForm-{{ task['id'] }}" method="POST" action="{{ url_for('delete_preparation_task', task_id=task['id']) }}" style="display: none;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          </form>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state">
+    <h4 class="empty-state-title">No Preparation Tasks Found</h4>
+    <p class="empty-state-desc">Add a new task to your placement syllabus or clear active filters to view existing tasks.</p>
+    <div style="display: inline-flex; gap: 8px;">
+      <button type="button" class="btn btn-primary btn-sm" data-modal-target="addTaskModal">Add Task to Syllabus</button>
+      {% if selected_category != 'All' or selected_status != 'All' or selected_priority != 'All' or search_query %}
+        <a href="{{ url_for('preparation') }}" class="btn btn-secondary btn-sm">Clear Filters</a>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+{% endblock %}
+
+{% block modals %}
+<!-- Add Task Modal -->
+<div class="modal-overlay" id="addTaskModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 class="card-title">Add Preparation Task</h3>
+      <button type="button" class="flash-close" data-modal-close>&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('add_preparation_task') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="add_task_title">Task Title *</label>
+          <input type="text" id="add_task_title" name="title" class="form-control" placeholder="e.g. Solve 30 Graph Traversal (BFS/DFS) Problems" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="add_task_cat">Category *</label>
+            <select id="add_task_cat" name="category" class="form-control">
+              {% for c in categories %}
+                <option value="{{ c }}" {% if selected_category == c %}selected{% endif %}>{{ c }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="add_task_prio">Priority</label>
+            <select id="add_task_prio" name="priority" class="form-control">
+              <option value="High">High</option>
+              <option value="Medium" selected>Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="add_task_due">Target Completion Date</label>
+          <input type="date" id="add_task_due" name="due_date" class="form-control" value="{{ today_iso }}">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="add_task_notes">Study Notes / Topics Covered</label>
+          <textarea id="add_task_notes" name="notes" class="form-control" rows="3" placeholder="Key algorithms, book chapters, or LeetCode question list..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm">Add to Tracker</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

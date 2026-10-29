@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+
+{% block title %}Companies & Placement Drives — PlacementTrack{% endblock %}
+{% block page_title %}Campus Placement Drives{% endblock %}
+
+{% block topbar_actions %}
+<button type="button" class="btn btn-primary btn-sm" data-modal-target="addCompanyModal">
+  <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+  </svg>
+  <span>Add Placement Drive</span>
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- Search, Filter & Sort Bar -->
+<div class="card" style="margin-bottom: 24px; padding: 16px 20px;">
+  <form method="GET" action="{{ url_for('companies') }}" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+    {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+    <input type="hidden" name="timeline" value="{{ status_filter }}">
+
+    <!-- Search Input -->
+    <div style="flex: 1; min-width: 240px; max-width: 380px;">
+      <input 
+        type="text" 
+        name="search" 
+        class="form-control" 
+        placeholder="Search company, role, eligibility, or skills..." 
+        value="{{ search_query }}"
+      >
+    </div>
+
+    <!-- Timeline Filter Tabs & Sort -->
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+      <div class="filter-tabs">
+        <a href="{{ url_for('companies', timeline='all', search=search_query, sort=sort_by) }}" 
+           class="filter-tab {% if status_filter == 'all' %}active{% endif %}">
+          All Drives
+        </a>
+        <a href="{{ url_for('companies', timeline='upcoming', search=search_query, sort=sort_by) }}" 
+           class="filter-tab {% if status_filter == 'upcoming' %}active{% endif %}">
+          Upcoming
+        </a>
+        <a href="{{ url_for('companies', timeline='past', search=search_query, sort=sort_by) }}" 
+           class="filter-tab {% if status_filter == 'past' %}active{% endif %}">
+          Past Drives
+        </a>
+      </div>
+
+      <select name="sort" class="form-control" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="this.form.submit()">
+        <option value="drive_date" {% if sort_by == 'drive_date' %}selected{% endif %}>Sort: Drive Date</option>
+        <option value="deadline" {% if sort_by == 'deadline' %}selected{% endif %}>Sort: Deadline</option>
+        <option value="company_name" {% if sort_by == 'company_name' %}selected{% endif %}>Sort: Company (A-Z)</option>
+        <option value="recent" {% if sort_by == 'recent' %}selected{% endif %}>Sort: Recently Added</option>
+      </select>
+
+      <button type="submit" class="btn btn-secondary btn-sm">Apply</button>
+      {% if search_query or status_filter != 'all' or sort_by != 'drive_date' or highlight_id %}
+        <a href="{{ url_for('companies') }}" class="btn btn-secondary btn-sm" style="color: var(--accent-rose);">Clear Filters</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<!-- Company Drives Grid -->
+{% if companies %}
+  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px;">
+    {% for comp in companies %}
+      <div class="card {% if highlight_id == comp['id'] %}highlight-card{% endif %}" id="company-card-{{ comp['id'] }}" style="display: flex; flex-direction: column; justify-content: space-between; position: relative;">
+        <div>
+          <!-- Top Row: Name, CTC, and Application status if linked -->
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px;">
+            <div>
+              <h3 style="font-size: 17px; font-weight: 700; color: var(--text-primary);">{{ comp['company_name'] }}</h3>
+              <div style="font-size: 14px; font-weight: 500; color: var(--text-secondary); margin-top: 2px;">{{ comp['role'] }}</div>
+            </div>
+
+            {% if comp['package_ctc'] %}
+              <div class="mono-metric" style="font-size: 13px; font-weight: 700; color: var(--primary);">
+                {{ comp['package_ctc'] }}
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Application Link Status -->
+          <div style="margin-bottom: 14px;">
+            {% if comp['id'] in app_mappings %}
+              {% set mapped_stage = app_mappings[comp['id']] %}
+              <div class="stage-indicator stage-{{ mapped_stage.lower().replace(' ', '-').replace('/', '-') }}">
+                <span class="stage-dot"></span>
+                <span>Tracked in Application Progress: <strong>{{ mapped_stage }}</strong></span>
+              </div>
+            {% else %}
+              <div class="meta-line">
+                <span style="color: var(--text-muted); font-size: 12px;">Not yet applied</span>
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Dates and Eligibility -->
+          <div style="background: var(--bg-subtle); padding: 12px 14px; border-radius: var(--radius-md); font-size: 13px; margin-bottom: 14px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+              <span style="color: var(--text-muted);">Drive Date:</span>
+              <span class="tabular-nums" style="font-weight: 600; color: {% if comp['drive_date'] and comp['drive_date'] >= today %}var(--primary){% else %}var(--text-secondary){% endif %};">
+                {{ comp['drive_date'] or 'TBD' }}
+              </span>
+            </div>
+
+            {% if comp['deadline'] %}
+              <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                <span style="color: var(--text-muted);">Application Deadline:</span>
+                <span class="tabular-nums" style="font-weight: 600; color: var(--accent-amber);">
+                  {{ comp['deadline'] }}
+                </span>
+              </div>
+            {% endif %}
+
+            {% if comp['eligibility'] %}
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Eligibility:</span>
+                <span style="font-weight: 500; color: var(--text-primary); text-align: right;">{{ comp['eligibility'] }}</span>
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Required Skills -->
+          {% if comp['required_skills'] %}
+            <div style="margin-bottom: 14px; font-size: 13px;">
+              <span style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">REQUIRED SKILLS</span>
+              <span style="color: var(--text-secondary);">{{ comp['required_skills'] }}</span>
+            </div>
+          {% endif %}
+
+          <!-- Notes -->
+          {% if comp['notes'] %}
+            <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 14px;">
+              {{ comp['notes'] }}
+            </p>
+          {% endif %}
+        </div>
+
+        <!-- Footer Actions -->
+        <div style="border-top: 1px solid var(--border-light); padding-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            {% if comp['job_link'] %}
+              <a href="{{ comp['job_link'] }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="font-size: 12px; gap: 4px;">
+                <span>Portal</span>
+                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            {% endif %}
+            <button type="button" class="btn btn-secondary btn-sm" style="font-size: 12px;" data-modal-target="viewCompanyModal-{{ comp['id'] }}">
+              Details
+            </button>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 6px;">
+            {% if comp['id'] not in app_mappings %}
+              <form method="POST" action="{{ url_for('add_application') }}" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="company_id" value="{{ comp['id'] }}">
+                <input type="hidden" name="company_name" value="{{ comp['company_name'] }}">
+                <input type="hidden" name="role" value="{{ comp['role'] }}">
+                <input type="hidden" name="stage" value="Applied">
+                <button type="submit" class="btn btn-primary btn-sm" style="font-size: 12px;">
+                  Track Application
+                </button>
+              </form>
+            {% else %}
+              <a href="{{ url_for('applications', search=comp['company_name']) }}" class="btn btn-secondary btn-sm" style="font-size: 12px;">
+                View Application
+              </a>
+            {% endif %}
+
+            <button type="button" class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 12px;" data-modal-target="editCompanyModal-{{ comp['id'] }}" title="Edit Drive">
+              Edit
+            </button>
+            <button type="button" class="btn btn-danger btn-sm" style="padding: 4px 8px; font-size: 12px;" data-confirm-form="deleteCompanyForm-{{ comp['id'] }}" data-confirm-title="Delete Campus Drive" data-confirm-message="Delete campus placement drive '{{ comp['company_name'] }} — {{ comp['role'] }}'?">
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- View Company Details Modal -->
+      <div class="modal-overlay" id="viewCompanyModal-{{ comp['id'] }}">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div>
+              <h3 class="card-title">{{ comp['company_name'] }}</h3>
+              <div style="font-size: 13px; color: var(--text-secondary);">{{ comp['role'] }}</div>
+            </div>
+            <button type="button" class="flash-close" data-modal-close>&times;</button>
+          </div>
+          <div class="modal-body" style="font-size: 14px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: var(--bg-subtle); padding: 14px; border-radius: var(--radius-md); margin-bottom: 16px;">
+              <div>
+                <div style="font-size: 11px; color: var(--text-muted);">PACKAGE / CTC</div>
+                <div class="mono-metric" style="font-weight: 700; color: var(--primary);">{{ comp['package_ctc'] or 'Not specified' }}</div>
+              </div>
+              <div>
+                <div style="font-size: 11px; color: var(--text-muted);">DRIVE DATE</div>
+                <div class="mono-metric" style="font-weight: 600;">{{ comp['drive_date'] or 'TBD' }}</div>
+              </div>
+              <div>
+                <div style="font-size: 11px; color: var(--text-muted);">DEADLINE</div>
+                <div class="mono-metric" style="font-weight: 600; color: var(--accent-amber);">{{ comp['deadline'] or 'None' }}</div>
+              </div>
+              <div>
+                <div style="font-size: 11px; color: var(--text-muted);">ELIGIBILITY</div>
+                <div style="font-weight: 600;">{{ comp['eligibility'] or 'Standard' }}</div>
+              </div>
+            </div>
+            <div style="margin-bottom: 12px;">
+              <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px;">REQUIRED SKILLS</div>
+              <div>{{ comp['required_skills'] or 'Not specified' }}</div>
+            </div>
+            <div style="margin-bottom: 12px;">
+              <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px;">PROCESS NOTES</div>
+              <div>{{ comp['notes'] or 'No additional notes recorded.' }}</div>
+            </div>
+            {% if comp['job_link'] %}
+              <div style="margin-top: 14px;">
+                <a href="{{ comp['job_link'] }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">Open Career Portal &rarr;</a>
+              </div>
+            {% endif %}
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Close</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Edit Company Modal -->
+      <div class="modal-overlay" id="editCompanyModal-{{ comp['id'] }}">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3 class="card-title">Edit Placement Drive</h3>
+            <button type="button" class="flash-close" data-modal-close>&times;</button>
+          </div>
+          <form method="POST" action="{{ url_for('edit_company', company_id=comp['id']) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="modal-body">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Company Name *</label>
+                  <input type="text" name="company_name" class="form-control" value="{{ comp['company_name'] }}" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Role / Position *</label>
+                  <input type="text" name="role" class="form-control" value="{{ comp['role'] }}" required>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Salary Package (CTC)</label>
+                  <input type="text" name="package_ctc" class="form-control" value="{{ comp['package_ctc'] or '' }}" placeholder="e.g. 18.0 LPA">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Drive Date</label>
+                  <input type="date" name="drive_date" class="form-control" value="{{ comp['drive_date'] or '' }}">
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Application Deadline</label>
+                  <input type="date" name="deadline" class="form-control" value="{{ comp['deadline'] or '' }}">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Eligibility Criteria</label>
+                  <input type="text" name="eligibility" class="form-control" value="{{ comp['eligibility'] or '' }}" placeholder="e.g. CGPA >= 7.5">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Required Skills</label>
+                <input type="text" name="required_skills" class="form-control" value="{{ comp['required_skills'] or '' }}" placeholder="DSA, Java, SQL, Operating Systems">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Job / Portal URL</label>
+                <input type="url" name="job_link" class="form-control" value="{{ comp['job_link'] or '' }}" placeholder="https://company.com/careers">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Notes & Interview Round Details</label>
+                <textarea name="notes" class="form-control" rows="3">{{ comp['notes'] or '' }}</textarea>
+              </div>
+            </div>
+            <div class="modal-footer" style="justify-content: space-between;">
+              <button type="button" class="btn btn-danger btn-sm" data-confirm-form="deleteCompanyForm-{{ comp['id'] }}" data-confirm-title="Delete Campus Drive" data-confirm-message="Delete campus placement drive '{{ comp['company_name'] }} — {{ comp['role'] }}'?">
+                Delete Drive
+              </button>
+              <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+              </div>
+            </div>
+          </form>
+          <form id="deleteCompanyForm-{{ comp['id'] }}" method="POST" action="{{ url_for('delete_company', company_id=comp['id']) }}" style="display: none;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          </form>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state">
+    <h4 class="empty-state-title">No Campus Drives Found</h4>
+    <p class="empty-state-desc">Add placement drives visiting your university campus to track eligibility and deadlines.</p>
+    <div style="display: inline-flex; gap: 8px;">
+      <button type="button" class="btn btn-primary btn-sm" data-modal-target="addCompanyModal">Add Campus Drive</button>
+      {% if search_query or status_filter != 'all' %}
+        <a href="{{ url_for('companies') }}" class="btn btn-secondary btn-sm">Clear Filters</a>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+{% endblock %}
+
+{% block modals %}
+<!-- Add Company Modal -->
+<div class="modal-overlay" id="addCompanyModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 class="card-title">Add Campus Placement Drive</h3>
+      <button type="button" class="flash-close" data-modal-close>&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('add_company') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="add_c_name">Company Name *</label>
+            <input type="text" id="add_c_name" name="company_name" class="form-control" placeholder="e.g. Google India" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="add_c_role">Role / Position *</label>
+            <input type="text" id="add_c_role" name="role" class="form-control" placeholder="Software Engineer" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="add_c_ctc">CTC / Package</label>
+            <input type="text" id="add_c_ctc" name="package_ctc" class="form-control" placeholder="e.g. 24.0 LPA">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="add_c_drive">Campus Drive Date</label>
+            <input type="date" id="add_c_drive" name="drive_date" class="form-control" value="{{ today_iso }}">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="add_c_dead">Application Deadline</label>
+            <input type="date" id="add_c_dead" name="deadline" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="add_c_elig">Eligibility Criteria</label>
+            <input type="text" id="add_c_elig" name="eligibility" class="form-control" placeholder="CGPA >= 8.0, No active backlogs">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="add_c_skills">Required Skills</label>
+          <input type="text" id="add_c_skills" name="required_skills" class="form-control" placeholder="DSA, System Design, C++, Python">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="add_c_url">Application / Career URL</label>
+          <input type="url" id="add_c_url" name="job_link" class="form-control" placeholder="https://careers.google.com">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="add_c_notes">Drive Process Notes</label>
+          <textarea id="add_c_notes" name="notes" class="form-control" rows="2" placeholder="Round 1: Online assessment (2 coding + 20 MCQ)..."></textarea>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
+          <input type="checkbox" id="create_application" name="create_application" value="1" checked style="cursor: pointer;">
+          <label for="create_application" style="font-size: 13px; font-weight: 500; cursor: pointer; color: var(--text-primary);">
+            Also create an active application in my tracker (Status: Applied)
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm">Add Company Drive</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

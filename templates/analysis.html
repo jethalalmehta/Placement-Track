@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block title %}Placement Analysis — PlacementTrack{% endblock %}
+{% block page_title %}Placement & Preparation Analysis{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('applications') }}" class="btn btn-secondary btn-sm">Manage Applications</a>
+<a href="{{ url_for('practice_tests') }}" class="btn btn-primary btn-sm">Log Practice Test</a>
+{% endblock %}
+
+{% block content %}
+<!-- Section 1: Placement Overview -->
+<div style="margin-bottom: 14px; display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+  <div>
+    <h2 style="font-size: 18px; font-weight: 700;">01. Placement Application Overview</h2>
+    <p style="font-size: 13px; color: var(--text-muted);">
+      Real-time counts derived from your SQLite application records. <strong>Active Applications</strong> = opportunities currently in <em>Applied</em>, <em>Shortlisted</em>, <em>Assessment/Test</em>, or <em>Interview</em> stage (excluding final outcomes).
+    </p>
+  </div>
+</div>
+
+<div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));">
+  <div class="metric-card">
+    <div class="metric-kicker">Total Applications</div>
+    <div class="metric-value-row">
+      <span class="metric-number mono-metric">{{ total_applications }}</span>
+    </div>
+    <div class="metric-subtext">All recorded opportunities</div>
+  </div>
+
+  <div class="metric-card">
+    <div class="metric-kicker">Active Applications</div>
+    <div class="metric-value-row">
+      <span class="metric-number mono-metric" style="color: var(--accent-teal);">{{ active_applications }}</span>
+    </div>
+    <div class="metric-subtext">In progress ({{ applied_count }} Applied, {{ shortlisted_count }} Shortlisted, {{ assessment_count }} Test, {{ interview_count }} Interview)</div>
+  </div>
+
+  <div class="metric-card">
+    <div class="metric-kicker">Selected (Offers)</div>
+    <div class="metric-value-row">
+      <span class="metric-number mono-metric" style="color: var(--accent-emerald);">{{ selected_count }}</span>
+    </div>
+    <div class="metric-subtext">Final positive outcome</div>
+  </div>
+
+  <div class="metric-card">
+    <div class="metric-kicker">Not Selected</div>
+    <div class="metric-value-row">
+      <span class="metric-number mono-metric" style="color: var(--text-secondary);">{{ not_selected_count }}</span>
+    </div>
+    <div class="metric-subtext">Concluded without offer</div>
+  </div>
+
+  <div class="metric-card">
+    <div class="metric-kicker">At Interview Stage</div>
+    <div class="metric-value-row">
+      <span class="metric-number mono-metric" style="color: #8b5cf6;">{{ interview_count }}</span>
+    </div>
+    <div class="metric-subtext">Technical / HR panels active</div>
+  </div>
+
+  <div class="metric-card">
+    <div class="metric-kicker">Awaiting Assessment/Test</div>
+    <div class="metric-value-row">
+      <span class="metric-number mono-metric" style="color: var(--accent-amber);">{{ assessment_count }}</span>
+    </div>
+    <div class="metric-subtext">Online coding / aptitude round</div>
+  </div>
+</div>
+
+<!-- Section 2: Placement Conversion Analysis -->
+<div class="card" style="margin-bottom: 24px;">
+  <div class="card-header">
+    <div>
+      <h3 class="card-title">02. Placement Conversion Analysis</h3>
+      <p class="card-subtitle">Mathematically defined conversion rates across your recruitment funnel</p>
+    </div>
+  </div>
+
+  {% if total_applications > 0 %}
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+      <!-- Selection Rate -->
+      <div style="padding: 16px; background: var(--bg-subtle); border: 1px solid var(--border-light); border-radius: var(--radius-md);">
+        <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">Selection Rate (Final Outcomes)</div>
+        <div class="mono-metric" style="font-size: 26px; font-weight: 700; color: var(--accent-emerald); margin: 6px 0;">
+          {% if completed_outcomes > 0 %}{{ selection_rate }}%{% else %}0.0%{% endif %}
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted);">
+          {% if completed_outcomes > 0 %}
+            {{ selected_count }} Selected &divide; {{ completed_outcomes }} Decided ({{ selected_count }} Selected + {{ not_selected_count }} Not Selected)
+          {% else %}
+            No final outcomes recorded yet (0 Decided)
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Overall Offer Rate -->
+      <div style="padding: 16px; background: var(--bg-subtle); border: 1px solid var(--border-light); border-radius: var(--radius-md);">
+        <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">Overall Offer Conversion</div>
+        <div class="mono-metric" style="font-size: 26px; font-weight: 700; color: var(--primary); margin: 6px 0;">
+          {{ overall_offer_rate }}%
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted);">
+          {{ selected_count }} Selected &divide; {{ total_applications }} Total Applications &times; 100
+        </div>
+      </div>
+
+      <!-- Interview Reach Rate -->
+      <div style="padding: 16px; background: var(--bg-subtle); border: 1px solid var(--border-light); border-radius: var(--radius-md);">
+        <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">Interview Reach Rate</div>
+        <div class="mono-metric" style="font-size: 26px; font-weight: 700; color: #8b5cf6; margin: 6px 0;">
+          {{ interview_reach_rate }}%
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted);">
+          ({{ interview_count }} Interview + {{ selected_count }} Selected) &divide; {{ total_applications }} Total
+        </div>
+      </div>
+
+      <!-- Shortlist & Assessment Progression -->
+      <div style="padding: 16px; background: var(--bg-subtle); border: 1px solid var(--border-light); border-radius: var(--radius-md);">
+        <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">Screening Advancement Rate</div>
+        <div class="mono-metric" style="font-size: 26px; font-weight: 700; color: var(--accent-teal); margin: 6px 0;">
+          {{ shortlist_conversion_rate }}%
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted);">
+          Advanced past initial application ({{ shortlisted_count + assessment_count + interview_count + selected_count }} of {{ total_applications }})
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <div class="empty-state" style="padding: 28px;">
+      <h4 class="empty-state-title">No Placement Applications Yet</h4>
+      <p class="empty-state-desc">Add your first placement application to see your conversion rates and funnel analysis.</p>
+      <a href="{{ url_for('applications') }}" class="btn btn-primary btn-sm">Add First Application</a>
+    </div>
+  {% endif %}
+</div>
+
+<!-- Section 3: Company & Status Breakdown -->
+<div class="split-grid-equal">
+  <!-- Applications Grouped by Status -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h3 class="card-title">Applications Grouped by Stage</h3>
+        <p class="card-subtitle">Stage distribution across {{ total_applications }} application(s)</p>
+      </div>
+      <a href="{{ url_for('applications') }}" class="btn btn-secondary btn-sm">Filter by Stage</a>
+    </div>
+
+    {% if total_applications > 0 %}
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        {% for stage in application_stages %}
+          {% set count = stage_counts.get(stage, 0) %}
+          {% set pct = ((count / total_applications) * 100)|round(1) if total_applications > 0 else 0 %}
+          <div>
+            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px;">
+              <div class="stage-indicator stage-{{ stage.lower().replace(' ', '-').replace('/', '-') }}">
+                <span class="stage-dot"></span>
+                <span style="font-weight: 600;">{{ stage }}</span>
+              </div>
+              <span class="mono-metric" style="font-size: 13px; color: var(--text-secondary);">
+                <strong>{{ count }}</strong> ({{ pct }}%)
+              </span>
+            </div>
+            <div class="progress-bar-bg" style="height: 7px;">
+              <div class="progress-bar-fill {% if stage == 'Selected' %}success{% elif stage == 'Assessment/Test' %}warning{% endif %}" style="width: {{ pct }}%;"></div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state" style="padding: 28px;">
+        <p class="empty-state-desc">Add your first placement application to see status distribution.</p>
+        <a href="{{ url_for('applications') }}" class="btn btn-secondary btn-sm">Track Application</a>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Company-wise Application Summary -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h3 class="card-title">Company-Wise Application Summary</h3>
+        <p class="card-subtitle">Companies applied to and role counts</p>
+      </div>
+      <a href="{{ url_for('companies') }}" class="btn btn-secondary btn-sm">Companies</a>
+    </div>
+
+    {% if company_wise_apps %}
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>COMPANY</th>
+              <th>ROLES APPLIED</th>
+              <th>APPLICATIONS</th>
+              <th>PACKAGE</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for comp in company_wise_apps %}
+              <tr>
+                <td style="font-weight: 600;">{{ comp['company_name'] }}</td>
+                <td style="font-size: 13px; color: var(--text-secondary);">{{ comp['roles'] }}</td>
+                <td class="mono-metric" style="font-weight: 600;">{{ comp['app_count'] }}</td>
+                <td class="mono-metric" style="font-size: 13px; color: var(--primary);">{{ comp['package_ctc'] or '—' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state" style="padding: 28px;">
+        <p class="empty-state-desc">No company applications recorded yet.</p>
+        <a href="{{ url_for('applications') }}" class="btn btn-secondary btn-sm">Add Application</a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Section 4: Preparation & Performance Analysis -->
+<div style="margin-bottom: 14px;">
+  <h2 style="font-size: 18px; font-weight: 700;">03. Preparation & Practice Performance Analysis</h2>
+  <p style="font-size: 13px; color: var(--text-muted);">
+    Combined analysis of your syllabus completion ({{ completed_tasks }}/{{ total_tasks }} tasks · {{ task_completion_exact }}%) and practice test performance ({{ total_tests }} tests · Avg {{ avg_score }}%).
+  </p>
+</div>
+
+<div class="split-grid-2">
+  <!-- Practice Test Score Trend Chart -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h3 class="card-title">Practice Score Trend Over Time</h3>
+        <p class="card-subtitle">Chronological percentage scores from SQLite test records</p>
+      </div>
+      <a href="{{ url_for('practice_tests') }}" class="btn btn-secondary btn-sm">All Tests</a>
+    </div>
+
+    <div style="height: 240px; width: 100%; position: relative;">
+      <canvas id="scoreTrendCanvas" style="width: 100%; height: 100%;"></canvas>
+    </div>
+
+    {% if weak_topics %}
+      <div style="margin-top: 16px; padding: 12px 14px; background: var(--accent-rose-light); border: 1px solid #fecdd3; border-radius: var(--radius-md);">
+        <div style="font-size: 12px; font-weight: 600; color: #9f1239; margin-bottom: 4px;">
+          Topics With Comparatively Lower Recorded Scores
+        </div>
+        <div class="meta-line">
+          {% for w in weak_topics %}
+            <span>{{ w['category'] }}: <strong>{{ "%.1f"|format(w['avg_pct']) }}%</strong> ({{ w['count'] }} test{% if w['count'] != 1 %}s{% endif %})</span>
+            {% if not loop.last %}<span class="meta-dot">·</span>{% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Topic-Wise Test Averages & Syllabus Completion -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h3 class="card-title">Topic-Wise Performance & Task Summary</h3>
+        <p class="card-subtitle">Pending priorities: {{ pending_by_priority['High'] }} High · {{ pending_by_priority['Medium'] }} Medium · {{ pending_by_priority['Low'] }} Low</p>
+      </div>
+      <a href="{{ url_for('preparation') }}" class="btn btn-secondary btn-sm">Tasks</a>
+    </div>
+
+    {% if topic_scores %}
+      <div id="topicPerformanceChart" style="margin-bottom: 18px;"></div>
+    {% else %}
+      <div class="empty-state" style="padding: 20px; margin-bottom: 16px;">
+        <p class="empty-state-desc">Record practice tests to view topic score averages.</p>
+        <a href="{{ url_for('practice_tests') }}" class="btn btn-secondary btn-sm">Log Practice Test</a>
+      </div>
+    {% endif %}
+
+    <div style="border-top: 1px solid var(--border-light); padding-top: 14px;">
+      <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 10px;">SYLLABUS COMPLETION BY CATEGORY</div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        {% for cat in category_progress %}
+          <div style="display: flex; align-items: center; justify-content: space-between; font-size: 13px;">
+            <span>{{ cat.category }}</span>
+            <span class="mono-metric" style="font-size: 12px; color: var(--text-secondary);">
+              {{ cat.completed }}/{{ cat.total }} done (<strong>{{ cat.percentage }}%</strong>)
+            </span>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

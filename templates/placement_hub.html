@@ -1,0 +1,1662 @@
+{% extends "base.html" %}
+
+{% block title %}Placement Hub — Placement Track{% endblock %}
+{% block page_title %}Placement Hub{% endblock %}
+
+{% block topbar_actions %}
+<div style="display: flex; align-items: center; gap: 8px;">
+  <!-- Refresh Online Opportunities -->
+  <form method="POST" action="{{ url_for('refresh_placement_jobs') }}" style="display: inline;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+    <button type="submit" class="btn btn-secondary btn-sm" title="Synchronize fresh opportunities from Jobicy, Arbeitnow, and Campus feeds">
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="vertical-align: -2px; margin-right: 4px;">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </svg>
+      Refresh Opportunities
+    </button>
+  </form>
+
+  <!-- Auto-Status & Simulator Button -->
+  <button type="button" class="btn btn-secondary btn-sm" data-modal-target="emailSimulatorModal" title="Test automated recruitment status synchronization & email parser">
+    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="vertical-align: -2px; margin-right: 4px;">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+    </svg>
+    Status Auto-Sync & Simulator
+  </button>
+
+{% if is_coordinator or active_tab == 'explore' %}
+<button type="button" class="btn btn-primary btn-sm" data-modal-target="addDriveModal">
+  <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+  </svg>
+  <span>+ Add Placement Drive</span>
+</button>
+{% else %}
+<button type="button" class="btn btn-primary btn-sm" data-modal-target="addAppModal">
+  <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+  </svg>
+  <span>+ Custom Application</span>
+</button>
+{% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Unified Hub Header & Navigation Tabs -->
+<div style="margin-bottom: 20px;">
+  <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 16px;">
+    <div>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <h2 style="font-size: 22px; font-weight: 700; color: var(--text-primary); margin: 0;">Placement Hub</h2>
+        {% if is_coordinator %}
+          <span class="badge" style="background: #e0e7ff; color: #4338ca; font-weight: 600; font-size: 11px;">
+            Coordinator View
+          </span>
+        {% endif %}
+      </div>
+      <p style="font-size: 14px; color: var(--text-muted); margin-top: 4px;">
+        Campus placement opportunities directory and end-to-end application progress tracker.
+      </p>
+    </div>
+
+    <!-- Tab Switcher -->
+    <div style="display: inline-flex; background: #e2e8f0; padding: 4px; border-radius: var(--radius-md);">
+      <a href="{{ url_for('placement_hub', tab='explore') }}" 
+         class="btn btn-sm {% if active_tab == 'explore' %}btn-primary{% else %}btn-secondary{% endif %}"
+         style="padding: 7px 18px; font-weight: 600; border: none; {% if active_tab != 'explore' %}background: transparent; color: var(--text-secondary);{% endif %}">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="vertical-align: -3px; margin-right: 4px;">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        Explore Opportunities ({{ companies|length }})
+      </a>
+      <a href="{{ url_for('placement_hub', tab='applications') }}" 
+         class="btn btn-sm {% if active_tab == 'applications' %}btn-primary{% else %}btn-secondary{% endif %}"
+         style="padding: 7px 18px; font-weight: 600; border: none; {% if active_tab != 'applications' %}background: transparent; color: var(--text-secondary);{% endif %}">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="vertical-align: -3px; margin-right: 4px;">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        My Applications ({{ total_apps_count }})
+      </a>
+    </div>
+  </div>
+</div>
+
+{% if active_tab == 'explore' %}
+<!-- ========================================== -->
+<!-- TAB A: EXPLORE OPPORTUNITIES              -->
+<!-- ========================================== -->
+
+<!-- Search, Filter & Sort Toolbar -->
+<div class="card" style="margin-bottom: 22px; padding: 16px 20px;">
+  <form method="GET" action="{{ url_for('placement_hub') }}" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+    {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+    <input type="hidden" name="tab" value="explore">
+    <input type="hidden" name="timeline" value="{{ status_filter }}">
+
+    <!-- Search Input -->
+    <div style="flex: 1; min-width: 260px; max-width: 380px;">
+      <input 
+        type="text" 
+        name="search" 
+        class="form-control" 
+        placeholder="Search company, role, skill, or location..." 
+        value="{{ search_query }}"
+      >
+    </div>
+
+    <!-- Filters & Sort -->
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+      <!-- Timeline Filter Tabs -->
+      <div class="filter-tabs">
+        <a href="{{ url_for('placement_hub', tab='explore', timeline='all', job_type=job_type_filter, work_mode=work_mode_filter, search=search_query, sort=sort_by) }}" 
+           class="filter-tab {% if status_filter == 'all' %}active{% endif %}">
+          All Drives
+        </a>
+        <a href="{{ url_for('placement_hub', tab='explore', timeline='upcoming', job_type=job_type_filter, work_mode=work_mode_filter, search=search_query, sort=sort_by) }}" 
+           class="filter-tab {% if status_filter == 'upcoming' %}active{% endif %}">
+          Active Drives
+        </a>
+        <a href="{{ url_for('placement_hub', tab='explore', timeline='past', job_type=job_type_filter, work_mode=work_mode_filter, search=search_query, sort=sort_by) }}" 
+           class="filter-tab {% if status_filter == 'past' %}active{% endif %}">
+          Past / Expired
+        </a>
+      </div>
+
+      <!-- Job Type Filter -->
+      <select name="job_type" class="form-control" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="this.form.submit()">
+        <option value="all" {% if job_type_filter == 'all' %}selected{% endif %}>Type: All</option>
+        <option value="Full-time" {% if job_type_filter == 'Full-time' %}selected{% endif %}>Full-time</option>
+        <option value="Internship" {% if job_type_filter == 'Internship' %}selected{% endif %}>Internship</option>
+      </select>
+
+      <!-- Work Mode Filter -->
+      <select name="work_mode" class="form-control" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="this.form.submit()">
+        <option value="all" {% if work_mode_filter == 'all' %}selected{% endif %}>Mode: All</option>
+        <option value="On-site" {% if work_mode_filter == 'On-site' %}selected{% endif %}>On-site</option>
+        <option value="Hybrid" {% if work_mode_filter == 'Hybrid' %}selected{% endif %}>Hybrid</option>
+        <option value="Remote" {% if work_mode_filter == 'Remote' %}selected{% endif %}>Remote</option>
+      </select>
+
+      <!-- Sort Filter -->
+      <select name="sort" class="form-control" style="width: auto; padding: 6px 10px; font-size: 13px;" onchange="this.form.submit()">
+        <option value="deadline" {% if sort_by == 'deadline' %}selected{% endif %}>Sort: Deadline (Earliest)</option>
+        <option value="package" {% if sort_by == 'package' %}selected{% endif %}>Sort: Package CTC</option>
+        <option value="company_name" {% if sort_by == 'company_name' %}selected{% endif %}>Sort: Company (A-Z)</option>
+        <option value="drive_date" {% if sort_by == 'drive_date' %}selected{% endif %}>Sort: Drive Date</option>
+        <option value="recent" {% if sort_by == 'recent' %}selected{% endif %}>Sort: Recently Added</option>
+      </select>
+
+      <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
+      {% if search_query or status_filter != 'all' or job_type_filter != 'all' or work_mode_filter != 'all' or sort_by != 'deadline' or highlight_id %}
+        <a href="{{ url_for('placement_hub', tab='explore') }}" class="btn btn-secondary btn-sm" style="color: var(--accent-rose);">Reset</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<!-- Opportunities Cards Grid -->
+{% if companies %}
+  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px;">
+    {% for comp in companies %}
+      <div class="card {% if highlight_id == comp['id'] %}highlight-card{% endif %}" id="drive-card-{{ comp['id'] }}" style="display: flex; flex-direction: column; justify-content: space-between; position: relative;">
+        <div>
+          <!-- Header: Company Monogram, Name, Role, Package & Type -->
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px;">
+            <div style="display: flex; align-items: flex-start; gap: 12px;">
+              <!-- Company Monogram Badge -->
+              <div style="width: 44px; height: 44px; border-radius: 10px; background: #0f172a; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                {{ comp['company_name'][:2]|upper }}
+              </div>
+              <div>
+                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                  <h3 style="font-size: 17px; font-weight: 700; color: var(--text-primary); margin: 0;">{{ comp['company_name'] }}</h3>
+                  {% if comp.get('is_demo') == 1 %}
+                    <span class="badge" style="background: #f1f5f9; color: #64748b; font-size: 10px; padding: 2px 6px;" title="Sample campus recruitment drive for testing & evaluation.">Sample Drive</span>
+                  {% else %}
+                    <span class="badge" style="background: #ecfdf5; color: #047857; font-size: 10px; padding: 2px 6px;">Verified Campus Drive</span>
+                  {% endif %}
+                  {% if comp.get('status') == 'Closed' %}
+                    <span class="badge" style="background: #fee2e2; color: #b91c1c; font-size: 10px; padding: 2px 6px;">Closed</span>
+                  {% endif %}
+                </div>
+                <div style="font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-top: 3px;">
+                  {{ comp['role'] }}
+                </div>
+              </div>
+            </div>
+
+            {% if comp['package_ctc'] %}
+              <div style="text-align: right; flex-shrink: 0;">
+                <div class="mono-metric" style="font-size: 15px; font-weight: 700; color: #0d9488;">
+                  {{ comp['package_ctc'] }}
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted);">CTC / Package</div>
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Location, Work Mode & Eligibility Match Badge -->
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; padding: 8px 10px; background: #f8fafc; border-radius: var(--radius-sm); border: 1px solid var(--border-light);">
+            <div style="font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+              <span>{{ comp['location'] or 'Campus Placement' }}</span>
+              <span class="meta-dot">·</span>
+              <span class="badge" style="background: #e2e8f0; color: #334155; font-size: 11px; padding: 2px 6px;">
+                {{ comp.get('work_mode') or 'On-site' }}
+              </span>
+              <span class="badge" style="background: #f1f5f9; color: #475569; font-size: 11px; padding: 2px 6px;">
+                {{ comp['job_type'] or 'Full-time' }}
+              </span>
+            </div>
+
+            <!-- Profile-Based Eligibility Indicator -->
+            <span class="badge {{ comp['eligibility_class'] }}" title="{{ comp['eligibility_detail'] }}" style="font-size: 11px; font-weight: 600; padding: 3px 8px;">
+              {{ comp['eligibility_status'] }}
+            </span>
+          </div>
+
+          <!-- Drive Details & Meta Specs -->
+          <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px; margin-bottom: 14px;">
+            {% if comp.get('job_description') %}
+              <div style="color: var(--text-secondary); font-size: 13px; line-height: 1.5; margin-bottom: 4px;">
+                {{ comp['job_description'][:150] }}{% if comp['job_description']|length > 150 %}...{% endif %}
+              </div>
+            {% endif %}
+
+            {% if comp['eligibility'] %}
+              <div>
+                <span style="color: var(--text-muted); font-size: 12px; font-weight: 500;">Eligibility:</span>
+                <span style="color: var(--text-primary); font-weight: 500; font-size: 12px;">{{ comp['eligibility'] }}</span>
+              </div>
+            {% endif %}
+
+            {% if comp['required_skills'] %}
+              <div>
+                <span style="color: var(--text-muted); font-size: 12px; font-weight: 500;">Required Skills:</span>
+                <span style="color: var(--text-secondary); font-size: 12px;">{{ comp['required_skills'] }}</span>
+              </div>
+            {% endif %}
+
+            {% if comp['selection_rounds'] %}
+              <div>
+                <span style="color: var(--text-muted); font-size: 12px; font-weight: 500;">Selection Rounds:</span>
+                <span style="color: var(--text-secondary); font-size: 12px;">{{ comp['selection_rounds'] }}</span>
+              </div>
+            {% endif %}
+
+            <!-- Timeline Dates -->
+            <div class="meta-line" style="margin-top: 4px; padding-top: 8px; border-top: 1px dashed var(--border-light); font-size: 12px;">
+              {% if comp['drive_date'] %}
+                <span>Drive Date: <strong>{{ comp['drive_date'] }}</strong></span>
+                <span class="meta-dot">·</span>
+              {% endif %}
+              <span style="color: {% if comp.get('is_expired') %}var(--accent-rose){% else %}var(--accent-amber){% endif %}; font-weight: 600;">
+                Deadline: {{ comp['deadline'] or 'Open' }} ({{ comp.get('deadline_text') }})
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons: View Details, Apply Now, and Official Portal -->
+        <div style="padding-top: 12px; border-top: 1px solid var(--border-light); display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; gap: 8px;">
+            <!-- View Details Button -->
+            <button type="button" class="btn btn-secondary btn-sm" style="flex: 1; text-align: center;" 
+                    data-modal-target="driveDetailsModal"
+                    data-company-id="{{ comp['id'] }}"
+                    data-company-name="{{ comp['company_name'] }}"
+                    data-role="{{ comp['role'] }}"
+                    data-package="{{ comp['package_ctc'] or 'Competitive' }}"
+                    data-location="{{ comp['location'] or 'Campus' }}"
+                    data-work-mode="{{ comp.get('work_mode') or 'On-site' }}"
+                    data-job-type="{{ comp['job_type'] or 'Full-time' }}"
+                    data-drive-date="{{ comp['drive_date'] or 'TBA' }}"
+                    data-deadline="{{ comp['deadline'] or 'Open' }}"
+                    data-eligibility="{{ comp['eligibility'] or 'None specified' }}"
+                    data-skills="{{ comp['required_skills'] or 'None specified' }}"
+                    data-rounds="{{ comp['selection_rounds'] or 'To be announced' }}"
+                    data-desc="{{ comp.get('job_description') or 'No additional description provided.' }}"
+                    data-link="{{ comp['job_link'] or comp.get('company_website') or '' }}"
+                    data-applied="{{ 1 if comp['id'] in app_mappings else 0 }}"
+                    data-stage="{{ app_mappings.get(comp['id'], '') }}"
+                    onclick="populateDriveDetailsModal(this)">
+              View Details
+            </button>
+
+            <!-- Apply Now / Tracked Status Button -->
+            {% if comp['id'] in app_mappings %}
+              <a href="{{ url_for('placement_hub', tab='applications', search=comp['company_name']) }}" 
+                 class="btn btn-sm" 
+                 style="flex: 1.2; text-align: center; background: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; font-weight: 600;" 
+                 title="View your active application under My Applications.">
+                Applied: {{ app_mappings[comp['id']] }} &rarr;
+              </a>
+            {% elif comp.get('is_expired') or comp.get('status') == 'Closed' %}
+              <button type="button" class="btn btn-secondary btn-sm" disabled style="flex: 1.2; opacity: 0.65; cursor: not-allowed;">
+                Drive Closed
+              </button>
+            {% elif comp.get('is_external') == 1 %}
+              <form method="POST" action="{{ url_for('track_external_opportunity', company_id=comp['id']) }}" style="flex: 1.2; display: flex; margin: 0;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+                <button type="submit" class="btn btn-primary btn-sm" style="width: 100%; font-weight: 600;" title="Saves vacancy as 'Tracked — Not Yet Confirmed'">
+                  Track & Apply &rarr;
+                </button>
+              </form>
+            {% else %}
+              <button type="button" class="btn btn-primary btn-sm" style="flex: 1.2;"
+                      data-modal-target="applyModal"
+                      data-company-id="{{ comp['id'] }}"
+                      data-company-name="{{ comp['company_name'] }}"
+                      data-role="{{ comp['role'] }}"
+                      data-package="{{ comp['package_ctc'] or '' }}"
+                      data-deadline="{{ comp['deadline'] or '' }}"
+                      data-eligibility="{{ comp['eligibility'] or '' }}"
+                      onclick="populateApplyModal(this)">
+                Apply Now &rarr;
+              </button>
+            {% endif %}
+          </div>
+
+          <!-- Secondary Links: Official Portal & Coordinator Options -->
+          <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; margin-top: 2px;">
+            {% if comp['job_link'] or comp.get('company_website') %}
+              <a href="{{ comp['job_link'] or comp.get('company_website') }}" target="_blank" rel="noopener noreferrer" style="color: var(--text-muted); text-decoration: underline; font-size: 11px;" title="Opens official company careers portal. Note: In-app application is recorded via Apply Now.">
+                Apply / Official Portal &nearr;
+              </a>
+            {% else %}
+              <span></span>
+            {% endif %}
+
+            <div style="display: flex; gap: 8px;">
+              {% if is_coordinator or comp.get('created_by') == current_user['id'] or comp['user_id'] == current_user['id'] %}
+                <button type="button" class="btn btn-secondary btn-sm" style="padding: 2px 6px; font-size: 11px;" 
+                        data-modal-target="editCompanyModal"
+                        data-company-id="{{ comp['id'] }}"
+                        data-company-name="{{ comp['company_name'] }}"
+                        data-role="{{ comp['role'] }}"
+                        data-package="{{ comp['package_ctc'] or '' }}"
+                        data-location="{{ comp['location'] or '' }}"
+                        data-work-mode="{{ comp.get('work_mode') or 'On-site' }}"
+                        data-job-type="{{ comp['job_type'] or 'Full-time' }}"
+                        data-drive-date="{{ comp['drive_date'] or '' }}"
+                        data-deadline="{{ comp['deadline'] or '' }}"
+                        data-eligibility="{{ comp['eligibility'] or '' }}"
+                        data-skills="{{ comp['required_skills'] or '' }}"
+                        data-rounds="{{ comp['selection_rounds'] or '' }}"
+                        data-desc="{{ comp.get('job_description') or '' }}"
+                        data-link="{{ comp['job_link'] or '' }}"
+                        data-notes="{{ comp['notes'] or '' }}"
+                        onclick="populateEditCompanyModal(this)">
+                  Edit
+                </button>
+                <form id="deleteDriveForm-{{ comp['id'] }}" method="POST" action="{{ url_for('delete_company', company_id=comp['id']) }}" style="display: inline;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+                  <button type="button" class="btn btn-secondary btn-sm" style="padding: 2px 6px; font-size: 11px; color: var(--accent-rose);"
+                          data-confirm-form="deleteDriveForm-{{ comp['id'] }}"
+                          data-confirm-title="Remove Placement Drive"
+                          data-confirm-message="Are you sure you want to remove '{{ comp['company_name'] }}' from the placement directory?">
+                    Remove
+                  </button>
+                </form>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="card empty-state" style="padding: 48px 24px; text-align: center;">
+    <div style="width: 52px; height: 52px; border-radius: 50%; background: #eef2ff; color: var(--primary); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+      <svg width="26" height="26" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+      </svg>
+    </div>
+    <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 6px;">No Placement Drives Found</h3>
+    <p style="color: var(--text-muted); font-size: 14px; max-width: 440px; margin: 0 auto 18px;">
+      {% if search_query or status_filter != 'all' or job_type_filter != 'all' %}
+        No company drives match your active search and filter criteria.
+      {% else %}
+        No campus placement drives currently available. Check back soon or add an opportunity.
+      {% endif %}
+    </p>
+    <div>
+      {% if search_query or status_filter != 'all' or job_type_filter != 'all' %}
+        <a href="{{ url_for('placement_hub', tab='explore') }}" class="btn btn-secondary btn-sm">Clear Filters</a>
+      {% else %}
+        <button type="button" class="btn btn-primary btn-sm" data-modal-target="addDriveModal">+ Register Placement Drive</button>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
+{% else %}
+<!-- ========================================== -->
+<!-- TAB B: MY APPLICATIONS                    -->
+<!-- ========================================== -->
+
+<!-- Application Progress Summary Counters -->
+<div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); margin-bottom: 22px;">
+  <div class="metric-card" style="padding: 14px;">
+    <div class="metric-kicker">Total Tracked</div>
+    <div class="mono-metric" style="font-size: 24px; font-weight: 700; color: var(--text-primary);">
+      {{ total_apps_count }}
+    </div>
+    <div class="metric-subtext">{{ active_apps_count }} in active progress</div>
+  </div>
+
+  <div class="metric-card" style="padding: 14px;">
+    <div class="metric-kicker" style="color: var(--accent-blue); font-weight: 600;">Applied</div>
+    <div class="mono-metric" style="font-size: 24px; font-weight: 700; color: var(--accent-blue);">
+      {{ stage_counts.get('Applied', 0) }}
+    </div>
+  </div>
+
+  <div class="metric-card" style="padding: 14px;">
+    <div class="metric-kicker" style="color: #8b5cf6; font-weight: 600;">Assessment</div>
+    <div class="mono-metric" style="font-size: 24px; font-weight: 700; color: #8b5cf6;">
+      {{ stage_counts.get('Assessment', 0) + stage_counts.get('Assessment Scheduled', 0) + stage_counts.get('Assessment Completed', 0) }}
+    </div>
+  </div>
+
+  <div class="metric-card" style="padding: 14px;">
+    <div class="metric-kicker" style="color: var(--accent-amber); font-weight: 600;">Interview</div>
+    <div class="mono-metric" style="font-size: 24px; font-weight: 700; color: var(--accent-amber);">
+      {{ stage_counts.get('Interview', 0) + stage_counts.get('Interview Scheduled', 0) + stage_counts.get('Interview Completed', 0) }}
+    </div>
+  </div>
+
+  <div class="metric-card" style="padding: 14px; background: var(--accent-emerald-light); border-color: #bbf7d0;">
+    <div class="metric-kicker" style="color: var(--accent-emerald); font-weight: 600;">Selected / Offers</div>
+    <div class="mono-metric" style="font-size: 24px; font-weight: 700; color: var(--accent-emerald);">
+      {{ stage_counts.get('Selected', 0) + stage_counts.get('Offer Received', 0) }}
+    </div>
+  </div>
+
+  <div class="metric-card" style="padding: 14px;">
+    <div class="metric-kicker" style="color: var(--accent-rose); font-weight: 600;">Not Selected</div>
+    <div class="mono-metric" style="font-size: 24px; font-weight: 700; color: var(--accent-rose);">
+      {{ stage_counts.get('Not Selected', 0) + stage_counts.get('Rejected', 0) }}
+    </div>
+  </div>
+
+  <div class="metric-card" style="padding: 14px;">
+    <div class="metric-kicker" style="color: var(--text-muted); font-weight: 600;">Withdrawn</div>
+    <div class="mono-metric" style="font-size: 24px; font-weight: 700; color: var(--text-muted);">
+      {{ stage_counts.get('Withdrawn', 0) }}
+    </div>
+  </div>
+</div>
+
+<!-- Search, Stage Filter & Sort Bar for Applications -->
+<div class="card" style="margin-bottom: 22px; padding: 14px 20px;">
+  <form method="GET" action="{{ url_for('placement_hub') }}" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+    {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+    <input type="hidden" name="tab" value="applications">
+
+    <div style="flex: 1; min-width: 240px; max-width: 360px;">
+      <input 
+        type="text" 
+        name="search" 
+        class="form-control" 
+        placeholder="Search company, role, reference, or notes..." 
+        value="{{ search_query }}"
+      >
+    </div>
+
+    <!-- Quick Status Group Tabs -->
+    <div class="filter-tabs">
+      <a href="{{ url_for('placement_hub', tab='applications', group='all', stage=stage_filter, search=search_query, app_sort=app_sort) }}" 
+         class="filter-tab {% if status_group == 'all' %}active{% endif %}">
+        All
+      </a>
+      <a href="{{ url_for('placement_hub', tab='applications', group='in_progress', stage=stage_filter, search=search_query, app_sort=app_sort) }}" 
+         class="filter-tab {% if status_group == 'in_progress' %}active{% endif %}">
+        In Progress
+      </a>
+      <a href="{{ url_for('placement_hub', tab='applications', group='selected', stage=stage_filter, search=search_query, app_sort=app_sort) }}" 
+         class="filter-tab {% if status_group == 'selected' %}active{% endif %}">
+        Selected
+      </a>
+      <a href="{{ url_for('placement_hub', tab='applications', group='not_selected', stage=stage_filter, search=search_query, app_sort=app_sort) }}" 
+         class="filter-tab {% if status_group == 'not_selected' %}active{% endif %}">
+        Not Selected
+      </a>
+      <a href="{{ url_for('placement_hub', tab='applications', group='withdrawn', stage=stage_filter, search=search_query, app_sort=app_sort) }}" 
+         class="filter-tab {% if status_group == 'withdrawn' %}active{% endif %}">
+        Withdrawn
+      </a>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+      <select name="stage" class="form-control" style="width: auto; padding: 7px 10px; font-size: 13px;" onchange="this.form.submit()">
+        <option value="All" {% if stage_filter == 'All' %}selected{% endif %}>Specific Stage: All</option>
+        {% for s in application_stages %}
+          <option value="{{ s }}" {% if stage_filter == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+
+      <select name="app_sort" class="form-control" style="width: auto; padding: 7px 10px; font-size: 13px;" onchange="this.form.submit()">
+        <option value="updated_desc" {% if app_sort == 'updated_desc' %}selected{% endif %}>Sort: Recently Updated</option>
+        <option value="date_desc" {% if app_sort == 'date_desc' %}selected{% endif %}>Sort: Applied Date (Newest)</option>
+        <option value="date_asc" {% if app_sort == 'date_asc' %}selected{% endif %}>Sort: Applied Date (Oldest)</option>
+        <option value="company_asc" {% if app_sort == 'company_asc' %}selected{% endif %}>Sort: Company (A-Z)</option>
+        <option value="stage_order" {% if app_sort == 'stage_order' %}selected{% endif %}>Sort: Progress Stage</option>
+      </select>
+
+      <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
+      {% if search_query or stage_filter != 'All' or status_group != 'all' or app_sort != 'updated_desc' or highlight_id %}
+        <a href="{{ url_for('placement_hub', tab='applications') }}" class="btn btn-secondary btn-sm" style="color: var(--accent-rose);">Reset</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<!-- Applications Cards -->
+{% if applications %}
+  <div style="display: flex; flex-direction: column; gap: 14px;">
+    {% for app in applications %}
+      <div class="card {% if highlight_id == app['id'] %}highlight-card{% endif %}" id="app-card-{{ app['id'] }}" style="padding: 18px 22px;">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 12px;">
+          <div style="display: flex; align-items: flex-start; gap: 12px;">
+            <div style="width: 42px; height: 42px; border-radius: 10px; background: #0f172a; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; flex-shrink: 0;">
+              {{ app['company_name'][:2]|upper }}
+            </div>
+            <div>
+              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <h3 style="font-size: 18px; font-weight: 700; color: var(--text-primary); margin: 0;">
+                  {{ app['company_name'] }}
+                </h3>
+                <!-- Genuine Status Badge -->
+                <span class="stage-indicator stage-{{ app['stage'].lower().replace(' ', '-').replace('/', '-') }}" style="font-size: 12px; font-weight: 600;">
+                  <span class="stage-dot"></span>
+                  <span>{{ app['stage'] }}</span>
+                </span>
+
+                {% if app['drive_package'] %}
+                  <span class="mono-metric" style="font-size: 13px; font-weight: 600; color: #0d9488;">
+                    {{ app['drive_package'] }}
+                  </span>
+                {% endif %}
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap;">
+                <span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">{{ app['role'] }}</span>
+                {% if app.get('app_ref') %}
+                  <span class="mono-metric" style="font-size: 11px; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; color: #475569;" title="Unique Application Reference Code">
+                    Ref: {{ app['app_ref'] }}
+                  </span>
+                {% endif %}
+                {% if is_coordinator and app.get('student_name') %}
+                  <span class="badge" style="background: #eef2ff; color: #3730a3; font-size: 11px;">
+                    Candidate: {{ app['student_name'] }} ({{ app.get('student_roll') or 'Student' }})
+                  </span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <!-- Application Date & Last Updated Meta -->
+          <div style="text-align: right; font-size: 12px; color: var(--text-muted);">
+            <div>Applied: <strong class="mono-metric" style="color: var(--text-primary);">{{ app['application_date'] or 'N/A' }}</strong></div>
+            <div style="margin-top: 2px;">Updated: {{ app['last_updated'][:10] if app['last_updated'] else 'Today' }}</div>
+          </div>
+        </div>
+
+        <!-- Next Steps / Interview Notice (Genuine Status Information) -->
+        {% if app.get('interview_details') or app.get('assessment_details') or app.get('next_step') %}
+          <div style="margin: 10px 0 14px; padding: 12px 14px; background: #f8fafc; border-left: 3px solid #0d9488; border-radius: 0 var(--radius-sm) var(--radius-sm) 0;">
+            {% if app.get('next_step') %}
+              <div style="font-size: 13px; font-weight: 600; color: #0f172a; margin-bottom: 2px;">
+                Next Step: <span style="font-weight: 500; color: #334155;">{{ app['next_step'] }}</span>
+              </div>
+            {% endif %}
+            {% if app.get('interview_details') %}
+              <div style="font-size: 12px; color: #b45309; margin-top: 4px; font-weight: 500;">
+                📅 Interview Schedule: {{ app['interview_details'] }}
+              </div>
+            {% endif %}
+            {% if app.get('assessment_details') %}
+              <div style="font-size: 12px; color: #6d28d9; margin-top: 4px; font-weight: 500;">
+                📝 Assessment Details: {{ app['assessment_details'] }}
+              </div>
+            {% endif %}
+          </div>
+        {% endif %}
+
+        <!-- Clean 5-Step Application Progress Timeline Indicator -->
+        <div style="margin: 12px 0 14px; padding: 10px 14px; background: #ffffff; border: 1px solid var(--border-light); border-radius: var(--radius-sm);">
+          <div style="display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 600;">
+            <!-- Step 1: Applied -->
+            <div style="display: flex; align-items: center; gap: 4px; color: {% if app['stage'] in ('Applied', 'Under Review', 'Shortlisted', 'Assessment Scheduled', 'Assessment Completed', 'Assessment', 'Assessment/Test', 'Interview Scheduled', 'Interview Completed', 'Interview', 'Selected', 'Offer Received') %}#0284c7{% else %}#94a3b8{% endif %};">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: currentColor;"></span>
+              <span>1. Applied</span>
+            </div>
+            <span style="flex: 1; height: 2px; background: #e2e8f0; margin: 0 8px;"></span>
+
+            <!-- Step 2: Under Review / Shortlisted -->
+            <div style="display: flex; align-items: center; gap: 4px; color: {% if app['stage'] in ('Under Review', 'Shortlisted', 'Assessment Scheduled', 'Assessment Completed', 'Assessment', 'Assessment/Test', 'Interview Scheduled', 'Interview Completed', 'Interview', 'Selected', 'Offer Received') %}#0d9488{% else %}#94a3b8{% endif %};">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: currentColor;"></span>
+              <span>2. Review & Shortlist</span>
+            </div>
+            <span style="flex: 1; height: 2px; background: #e2e8f0; margin: 0 8px;"></span>
+
+            <!-- Step 3: Assessment -->
+            <div style="display: flex; align-items: center; gap: 4px; color: {% if app['stage'] in ('Assessment Scheduled', 'Assessment Completed', 'Assessment', 'Assessment/Test', 'Interview Scheduled', 'Interview Completed', 'Interview', 'Selected', 'Offer Received') %}#8b5cf6{% else %}#94a3b8{% endif %};">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: currentColor;"></span>
+              <span>3. Assessment</span>
+            </div>
+            <span style="flex: 1; height: 2px; background: #e2e8f0; margin: 0 8px;"></span>
+
+            <!-- Step 4: Interview -->
+            <div style="display: flex; align-items: center; gap: 4px; color: {% if app['stage'] in ('Interview Scheduled', 'Interview Completed', 'Interview', 'Selected', 'Offer Received') %}#f59e0b{% else %}#94a3b8{% endif %};">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: currentColor;"></span>
+              <span>4. Interview</span>
+            </div>
+            <span style="flex: 1; height: 2px; background: #e2e8f0; margin: 0 8px;"></span>
+
+            <!-- Step 5: Final Decision -->
+            <div style="display: flex; align-items: center; gap: 4px; color: {% if app['stage'] in ('Selected', 'Offer Received') %}#10b981{% elif app['stage'] in ('Not Selected', 'Rejected') %}#ef4444{% elif app['stage'] == 'Withdrawn' %}#64748b{% else %}#94a3b8{% endif %};">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: currentColor;"></span>
+              <span>5. {% if app['stage'] in ('Selected', 'Offer Received') %}Offer Selected{% elif app['stage'] in ('Not Selected', 'Rejected') %}Not Selected{% elif app['stage'] == 'Withdrawn' %}Withdrawn{% else %}Decision{% endif %}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preparation Notes -->
+        {% if app['notes'] %}
+          <div style="background: #f8fafc; border: 1px solid var(--border-light); padding: 10px 12px; border-radius: var(--radius-sm); margin-bottom: 12px; font-size: 13px;">
+            <span style="font-weight: 600; color: var(--text-primary); font-size: 12px;">Candidate Preparation Notes:</span>
+            <p style="margin: 3px 0 0; color: var(--text-secondary); white-space: pre-line;">{{ app['notes'] }}</p>
+          </div>
+        {% endif %}
+
+        <!-- Controls: View Application Progress, Edit Notes, Coordinator Status Update, and Withdraw -->
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding-top: 10px; border-top: 1px solid var(--border-light);">
+          <!-- Left: View Detailed Application Progress Button -->
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" class="btn btn-secondary btn-sm"
+                    data-modal-target="progressModal"
+                    data-app-id="{{ app['id'] }}"
+                    data-company-name="{{ app['company_name'] }}"
+                    data-role="{{ app['role'] }}"
+                    data-stage="{{ app['stage'] }}"
+                    data-ref="{{ app.get('app_ref') or 'Registered' }}"
+                    data-date="{{ app['application_date'] or '' }}"
+                    data-next="{{ app.get('next_step') or '' }}"
+                    data-interview="{{ app.get('interview_details') or '' }}"
+                    data-assessment="{{ app.get('assessment_details') or '' }}"
+                    data-hist-json='{{ status_histories.get(app["id"], [])|tojson }}'
+                    onclick="openProgressModal(this)">
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="vertical-align: -2px; margin-right: 2px;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              View Application Progress (Timeline)
+            </button>
+
+            <!-- Coordinator Status Action (Server-side Role Controlled) -->
+            {% if is_coordinator %}
+              <button type="button" class="btn btn-primary btn-sm" style="background: #4338ca; border-color: #3730a3;"
+                      data-modal-target="coordinatorStatusModal"
+                      data-app-id="{{ app['id'] }}"
+                      data-student-name="{{ app.get('student_name') or 'Candidate' }}"
+                      data-company-name="{{ app['company_name'] }}"
+                      data-role="{{ app['role'] }}"
+                      data-stage="{{ app['stage'] }}"
+                      data-next="{{ app.get('next_step') or '' }}"
+                      data-interview="{{ app.get('interview_details') or '' }}"
+                      data-assessment="{{ app.get('assessment_details') or '' }}"
+                      onclick="populateCoordinatorStatusModal(this)">
+                Update Official Status
+              </button>
+            {% else %}
+              <!-- Backward-compatible stage update form for testing -->
+              <form method="POST" action="{{ url_for('update_application_stage', app_id=app['id']) }}" style="display: none;" id="stageForm-{{ app['id'] }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+                <input type="hidden" name="stage" id="stageInput-{{ app['id'] }}" value="{{ app['stage'] }}">
+              </form>
+            {% endif %}
+          </div>
+
+            <!-- If Tracked - Not Yet Confirmed: Show I've Applied button -->
+            {% if app['stage'] == 'Tracked — Not Yet Confirmed' or app['stage'] == 'Tracked' %}
+              <button type="button" class="btn btn-success btn-sm" style="font-weight: 600;"
+                      data-modal-target="confirmAppliedModal"
+                      data-app-id="{{ app['id'] }}"
+                      data-company-name="{{ app['company_name'] }}"
+                      data-role="{{ app['role'] }}"
+                      onclick="populateConfirmAppliedModal(this)">
+                <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="vertical-align: -2px; margin-right: 2px;">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                I've Applied &rarr;
+              </button>
+            {% endif %}
+
+            <!-- Right: Edit Notes & Withdraw / Remove Options -->
+            <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" class="btn btn-secondary btn-sm" style="padding: 5px 10px; font-size: 12px;"
+                    data-modal-target="editAppModal"
+                    data-app-id="{{ app['id'] }}"
+                    data-company-name="{{ app['company_name'] }}"
+                    data-role="{{ app['role'] }}"
+                    data-stage="{{ app['stage'] }}"
+                    data-date="{{ app['application_date'] or '' }}"
+                    data-notes="{{ app['notes'] or '' }}"
+                    onclick="populateEditAppModal(this)">
+              Edit Notes
+            </button>
+
+            <!-- Withdraw Application Button -->
+            {% if app['stage'] != 'Withdrawn' and app['stage'] not in ('Selected', 'Offer Received') %}
+              <form id="withdrawAppForm-{{ app['id'] }}" method="POST" action="{{ url_for('withdraw_application', app_id=app['id']) }}" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+                <button type="button" class="btn btn-secondary btn-sm" style="padding: 5px 10px; font-size: 12px; color: #b45309;"
+                        data-confirm-form="withdrawAppForm-{{ app['id'] }}"
+                        data-confirm-title="Withdraw Application"
+                        data-confirm-message="Are you sure you want to withdraw your application for '{{ app['company_name'] }} — {{ app['role'] }}'? This status change will be recorded permanently in your progress history.">
+                  Withdraw
+                </button>
+              </form>
+            {% endif %}
+
+            <!-- Remove Tracked Record -->
+            <form id="deleteAppForm-{{ app['id'] }}" method="POST" action="{{ url_for('delete_application', app_id=app['id']) }}" style="display: inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+              <button type="button" class="btn btn-secondary btn-sm" style="padding: 5px 10px; font-size: 12px; color: var(--accent-rose);"
+                      data-confirm-form="deleteAppForm-{{ app['id'] }}"
+                      data-confirm-title="Remove Application Record"
+                      data-confirm-message="Are you sure you want to remove your tracked record for '{{ app['company_name'] }} — {{ app['role'] }}'?">
+                Remove
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="card empty-state" style="padding: 48px 24px; text-align: center;">
+    <div style="width: 52px; height: 52px; border-radius: 50%; background: #eef2ff; color: var(--primary); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+      <svg width="26" height="26" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    </div>
+    <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 6px;">No Applications In This Category</h3>
+    <p style="color: var(--text-muted); font-size: 14px; max-width: 440px; margin: 0 auto 18px;">
+      {% if search_query or stage_filter != 'All' or status_group != 'all' %}
+        No applications match your active search and filter criteria.
+      {% else %}
+        You haven't submitted any applications yet. Explore available campus placement drives to submit an application.
+      {% endif %}
+    </p>
+    <div style="display: flex; gap: 10px; justify-content: center;">
+      <a href="{{ url_for('placement_hub', tab='explore') }}" class="btn btn-primary btn-sm">Explore Opportunities</a>
+      <button type="button" class="btn btn-secondary btn-sm" data-modal-target="addAppModal">+ Custom Application</button>
+    </div>
+  </div>
+{% endif %}
+
+{% endif %}
+
+<!-- ========================================== -->
+<!-- MODALS                                     -->
+<!-- ========================================== -->
+
+<!-- Modal: In-App Direct Application (Requirement 2) -->
+<div class="modal-overlay" id="applyModal">
+  <div class="modal-content" style="max-width: 560px;">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title" id="applyModalTitle">Submit Campus Application</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin: 2px 0 0;" id="applyModalSubtitle">
+          Campus placement application pre-filled from your profile.
+        </p>
+      </div>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form id="applyForm" method="POST" action="">
+      <div class="modal-body">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+
+        <!-- Pre-filled Student Profile Summary Box -->
+        <div style="background: #f8fafc; border: 1px solid var(--border-light); padding: 14px; border-radius: var(--radius-sm); margin-bottom: 16px;">
+          <div style="font-size: 12px; font-weight: 600; color: #475569; text-transform: uppercase; margin-bottom: 8px;">
+            Applicant Profile Verification
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
+            <div><span style="color: var(--text-muted);">Name:</span> <strong>{{ current_user['name'] }}</strong></div>
+            <div><span style="color: var(--text-muted);">Email:</span> <strong>{{ current_user['email'] }}</strong></div>
+            <div><span style="color: var(--text-muted);">Student ID:</span> <strong>{{ current_user['student_id'] or 'Not Set' }}</strong></div>
+            <div><span style="color: var(--text-muted);">Branch:</span> <strong>{{ student_profile['branch'] if student_profile else 'CSE' }}</strong></div>
+            <div><span style="color: var(--text-muted);">Graduation:</span> <strong>{{ student_profile['graduation_year'] if student_profile else '2026' }}</strong></div>
+            <div>
+              <span style="color: var(--text-muted);">Saved CGPA:</span> 
+              <strong style="color: {% if student_cgpa %}#0d9488{% else %}#ef4444{% endif %};">
+                {{ student_cgpa or 'Missing in Profile' }}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Contact Phone *</label>
+            <input type="tel" name="phone" class="form-control" placeholder="+91 98765 43210" value="{{ current_user['phone'] if current_user and 'phone' in current_user and current_user['phone'] else '' }}" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Confirm CGPA *</label>
+            <input type="number" step="0.01" min="0" max="10" name="cgpa" class="form-control" placeholder="e.g. 8.50" value="{{ student_cgpa or '' }}" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Candidate Statement / Relevant Skills</label>
+          <textarea name="notes" class="form-control" rows="3" placeholder="Highlight relevant coursework, projects, or certifications for this role..."></textarea>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+            Your profile technical skills and resume records will be automatically associated with this submission.
+          </div>
+        </div>
+
+        <div style="padding: 10px 12px; background: #e0f2fe; border: 1px solid #bae6fd; border-radius: var(--radius-sm); font-size: 12px; color: #0369a1;">
+          <strong>Notice:</strong> Submitting this form records your campus placement application with the Placement Office. A unique application reference number will be generated immediately.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm">Confirm & Submit Application</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: View Drive Details (Requirement 1) -->
+<div class="modal-overlay" id="driveDetailsModal">
+  <div class="modal-content" style="max-width: 620px;">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title" id="detailCompanyName">Company Details</h3>
+        <p style="font-size: 13px; color: #0d9488; font-weight: 600; margin: 2px 0 0;" id="detailRole">Job Role</p>
+      </div>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <div class="modal-body" style="font-size: 13px;">
+      <!-- Key Specs Bar -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; background: #f8fafc; padding: 12px; border-radius: var(--radius-sm); margin-bottom: 16px; border: 1px solid var(--border-light);">
+        <div><span style="color: var(--text-muted); font-size: 11px; display: block;">PACKAGE / CTC</span><strong class="mono-metric" style="color: #0d9488; font-size: 14px;" id="detailPackage">--</strong></div>
+        <div><span style="color: var(--text-muted); font-size: 11px; display: block;">LOCATION</span><strong id="detailLocation">--</strong></div>
+        <div><span style="color: var(--text-muted); font-size: 11px; display: block;">WORK MODE</span><strong id="detailWorkMode">--</strong></div>
+        <div><span style="color: var(--text-muted); font-size: 11px; display: block;">JOB TYPE</span><strong id="detailJobType">--</strong></div>
+        <div><span style="color: var(--text-muted); font-size: 11px; display: block;">DEADLINE</span><strong style="color: var(--accent-amber);" id="detailDeadline">--</strong></div>
+      </div>
+
+      <div style="margin-bottom: 14px;">
+        <h4 style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">Role & Opportunity Description</h4>
+        <p style="color: var(--text-secondary); line-height: 1.6; margin: 0; white-space: pre-line;" id="detailDesc">--</p>
+      </div>
+
+      <div style="margin-bottom: 14px;">
+        <h4 style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">Eligibility Criteria</h4>
+        <p style="color: var(--text-secondary); margin: 0;" id="detailEligibility">--</p>
+      </div>
+
+      <div style="margin-bottom: 14px;">
+        <h4 style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">Required Technical Skills</h4>
+        <p style="color: var(--text-secondary); margin: 0;" id="detailSkills">--</p>
+      </div>
+
+      <div style="margin-bottom: 14px;">
+        <h4 style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">Recruitment & Selection Rounds</h4>
+        <p style="color: var(--text-secondary); margin: 0;" id="detailRounds">--</p>
+      </div>
+
+      <div id="detailLinkBox" style="margin-top: 10px; padding: 10px 12px; background: #f1f5f9; border-radius: var(--radius-sm);">
+        <span style="color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 2px;">OFFICIAL COMPANY CAREERS PORTAL:</span>
+        <a id="detailLink" href="#" target="_blank" rel="noopener noreferrer" style="color: #0284c7; word-break: break-all; font-weight: 500;">--</a>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content: space-between;">
+      <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Close</button>
+      <div id="detailActionSlot">
+        <!-- Injected dynamically based on application status -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Redesigned Application Progress Timeline (Requirement 5) -->
+<div class="modal-overlay" id="progressModal">
+  <div class="modal-content" style="max-width: 580px;">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title" id="progressModalTitle">Application Progress Tracker</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin: 2px 0 0;" id="progressModalSubtitle">
+          Verified status timeline and update history.
+        </p>
+      </div>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <div class="modal-body" style="font-size: 13px;">
+      <!-- Key Reference Card -->
+      <div style="display: flex; align-items: center; justify-content: space-between; background: #f8fafc; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-light); margin-bottom: 18px;">
+        <div>
+          <div style="font-size: 11px; color: var(--text-muted);">APPLICATION REFERENCE</div>
+          <div class="mono-metric" style="font-size: 15px; font-weight: 700; color: #0f172a;" id="progressModalRef">--</div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 11px; color: var(--text-muted);">CURRENT STATUS</div>
+          <span class="badge" id="progressModalStageBadge" style="font-size: 12px; font-weight: 600;">--</span>
+        </div>
+      </div>
+
+      <!-- Vertical Step-by-Step Timeline Container -->
+      <h4 style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 12px;">Recruitment Stage Progression</h4>
+      <div id="verticalTimeline" style="position: relative; padding-left: 28px; margin-bottom: 22px;">
+        <!-- Timeline items will be rendered by JS -->
+      </div>
+
+      <!-- Complete Status Update Audit History -->
+      <h4 style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 8px;">Audit History & Remarks</h4>
+      <div id="progressAuditLog" style="max-height: 180px; overflow-y: auto; background: #f8fafc; border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: 10px;">
+        <!-- Injected by JS -->
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Coordinator Status Update (Requirement 4 & 7) -->
+<div class="modal-overlay" id="coordinatorStatusModal">
+  <div class="modal-content" style="max-width: 540px;">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Official Application Status Update</h3>
+        <p style="font-size: 13px; color: #4338ca; font-weight: 500; margin: 2px 0 0;" id="coordModalSubtitle">
+          Placement Coordinator Administrative Panel
+        </p>
+      </div>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form id="coordinatorStatusForm" method="POST" action="">
+      <div class="modal-body">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+
+        <div class="form-group">
+          <label class="form-label">New Application Status *</label>
+          <select name="stage" id="coordStageSelect" class="form-control" required>
+            <option value="Applied">Applied</option>
+            <option value="Under Review">Under Review</option>
+            <option value="Shortlisted">Shortlisted</option>
+            <option value="Assessment Scheduled">Assessment Scheduled</option>
+            <option value="Assessment Completed">Assessment Completed</option>
+            <option value="Interview Scheduled">Interview Scheduled</option>
+            <option value="Interview Completed">Interview Completed</option>
+            <option value="Offer Received">Offer Received</option>
+            <option value="Selected">Selected</option>
+            <option value="Not Selected">Not Selected</option>
+            <option value="On Hold">On Hold</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Status Update Reason / Remarks *</label>
+          <textarea name="status_note" id="coordStatusNote" class="form-control" rows="2" placeholder="e.g. Cleared online assessment with 92% score. Invited for technical round 1." required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Next Action / Next Step Instruction</label>
+          <input type="text" name="next_step" id="coordNextStep" class="form-control" placeholder="e.g. Technical Round 1 on DSA and Database Systems">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label class="form-label">Interview Date / Time</label>
+            <input type="text" name="interview_date" id="coordInterviewDate" class="form-control" placeholder="e.g. Friday 11:00 AM">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Venue / Meeting URL</label>
+            <input type="text" name="interview_venue" id="coordInterviewVenue" class="form-control" placeholder="e.g. Zoom Link / Campus Lab 4">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Assessment Details (Platform / Test Link)</label>
+          <input type="text" name="assessment_details" id="coordAssessmentDetails" class="form-control" placeholder="e.g. HackerRank Platform link active until Sunday">
+        </div>
+
+        <div style="padding: 8px 10px; background: #eef2ff; border-radius: var(--radius-sm); font-size: 11px; color: #3730a3;">
+          Saving this update will permanently record an entry in the candidate's status history and dispatch an in-app notification.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm" style="background: #4338ca; border-color: #3730a3;">Save Official Status</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Add Placement Drive (Shared Opportunity) -->
+<div class="modal-overlay" id="addDriveModal">
+  <div class="modal-content" style="max-width: 580px;">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Publish Placement Drive Opportunity</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin: 2px 0 0;">
+          Drives added here are shared and published across all eligible students.
+        </p>
+      </div>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('add_company_drive') }}">
+      <div class="modal-body">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Company Name *</label>
+            <input type="text" name="company_name" class="form-control" required placeholder="e.g. Google India">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Job Role *</label>
+            <input type="text" name="role" class="form-control" required placeholder="e.g. Software Engineer (L3)">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Package / CTC</label>
+            <input type="text" name="package_ctc" class="form-control" placeholder="e.g. 30.0 LPA">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Location</label>
+            <input type="text" name="location" class="form-control" placeholder="e.g. Bengaluru / Hyderabad">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Work Mode</label>
+            <select name="work_mode" class="form-control">
+              <option value="On-site">On-site</option>
+              <option value="Hybrid" selected>Hybrid</option>
+              <option value="Remote">Remote</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Job Type</label>
+            <select name="job_type" class="form-control">
+              <option value="Full-time" selected>Full-time</option>
+              <option value="Internship">Internship</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Drive Date</label>
+            <input type="date" name="drive_date" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Application Deadline</label>
+            <input type="date" name="deadline" class="form-control">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Min CGPA</label>
+            <input type="number" step="0.1" min="0" max="10" name="min_cgpa" class="form-control" placeholder="e.g. 7.5">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Eligibility Note</label>
+            <input type="text" name="eligibility" class="form-control" placeholder="e.g. CGPA >= 7.5, B.Tech CSE/IT, No active backlogs">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Job Description</label>
+          <textarea name="job_description" class="form-control" rows="2" placeholder="Brief summary of duties and responsibilities..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Required Skills</label>
+          <input type="text" name="required_skills" class="form-control" placeholder="e.g. Data Structures, C++, Python, System Design">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Selection Rounds</label>
+          <input type="text" name="selection_rounds" class="form-control" placeholder="e.g. Online Assessment + 2 Technical Loops + HR">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Official Careers Link</label>
+            <input type="url" name="job_link" class="form-control" placeholder="https://careers.google.com">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Company Website</label>
+            <input type="url" name="company_website" class="form-control" placeholder="https://google.com">
+          </div>
+        </div>
+
+        <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+          <input type="checkbox" id="createAppCheckbox" name="create_application" value="1">
+          <label for="createAppCheckbox" class="form-label" style="margin: 0; cursor: pointer; font-weight: normal;">
+            Also track in My Applications automatically
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm">Publish Placement Drive</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Edit Placement Drive -->
+<div class="modal-overlay" id="editCompanyModal">
+  <div class="modal-content" style="max-width: 580px;">
+    <div class="modal-header">
+      <h3 class="modal-title">Edit Placement Drive Opportunity</h3>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form id="editCompanyForm" method="POST" action="">
+      <div class="modal-body">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Company Name *</label>
+            <input type="text" name="company_name" id="editCompName" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Job Role *</label>
+            <input type="text" name="role" id="editCompRole" class="form-control" required>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Package / CTC</label>
+            <input type="text" name="package_ctc" id="editCompPackage" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Location</label>
+            <input type="text" name="location" id="editCompLocation" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Work Mode</label>
+            <select name="work_mode" id="editCompWorkMode" class="form-control">
+              <option value="On-site">On-site</option>
+              <option value="Hybrid">Hybrid</option>
+              <option value="Remote">Remote</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Job Type</label>
+            <select name="job_type" id="editCompJobType" class="form-control">
+              <option value="Full-time">Full-time</option>
+              <option value="Internship">Internship</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Drive Date</label>
+            <input type="date" name="drive_date" id="editCompDriveDate" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Deadline</label>
+            <input type="date" name="deadline" id="editCompDeadline" class="form-control">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Eligibility</label>
+          <input type="text" name="eligibility" id="editCompEligibility" class="form-control">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Job Description</label>
+          <textarea name="job_description" id="editCompDesc" class="form-control" rows="2"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Required Skills</label>
+          <input type="text" name="required_skills" id="editCompSkills" class="form-control">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Selection Rounds</label>
+          <input type="text" name="selection_rounds" id="editCompRounds" class="form-control">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Official Careers URL</label>
+          <input type="url" name="job_link" id="editCompLink" class="form-control">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Coordinator Notes</label>
+          <textarea name="notes" id="editCompNotes" class="form-control" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Custom Application / Add App -->
+<div class="modal-overlay" id="addAppModal">
+  <div class="modal-content" style="max-width: 520px;">
+    <div class="modal-header">
+      <h3 class="modal-title">Track Custom Application</h3>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('add_application') }}">
+      <div class="modal-body">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Company Name *</label>
+            <input type="text" name="company_name" class="form-control" required placeholder="e.g. Uber India">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Job Role *</label>
+            <input type="text" name="role" class="form-control" required placeholder="e.g. Backend Engineer">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Initial Status *</label>
+            <select name="stage" class="form-control" required>
+              {% for s in application_stages %}
+                <option value="{{ s }}">{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Application Date</label>
+            <input type="date" name="application_date" class="form-control" value="{{ today }}">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Preparation Notes</label>
+          <textarea name="notes" class="form-control" rows="3" placeholder="Add preparation topics, interview slot details, or referral info..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm">Save Application</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Edit Preparation Notes -->
+<div class="modal-overlay" id="editAppModal">
+  <div class="modal-content" style="max-width: 520px;">
+    <div class="modal-header">
+      <h3 class="modal-title">Edit Preparation Notes & Details</h3>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form id="editAppForm" method="POST" action="">
+      <div class="modal-body">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Company Name *</label>
+            <input type="text" name="company_name" id="editAppCompanyName" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Job Role *</label>
+            <input type="text" name="role" id="editAppRole" class="form-control" required>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Current Status *</label>
+            <select name="stage" id="editAppStage" class="form-control" required>
+              {% for s in application_stages %}
+                <option value="{{ s }}">{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Application Date</label>
+            <input type="date" name="application_date" id="editAppDate" class="form-control">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Preparation Notes</label>
+          <textarea name="notes" id="editAppNotes" class="form-control" rows="4"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm">Save Notes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Confirm External Application (I've Applied) -->
+<div class="modal-overlay" id="confirmAppliedModal">
+  <div class="modal-content" style="max-width: 520px;">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title" id="confirmAppliedTitle">Confirm External Application</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin: 2px 0 0;" id="confirmAppliedSubtitle">
+          Record that you have completed and submitted your external application.
+        </p>
+      </div>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form method="POST" id="confirmAppliedForm" action="">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+
+      <div class="modal-body" style="font-size: 13px;">
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px 12px; border-radius: var(--radius-sm); margin-bottom: 14px; font-size: 12px; color: #166534;">
+          <strong>Confirmed Submission:</strong> Marking this application as <em>Applied</em> records your formal application date and enables automatic status tracking when recruitment emails arrive.
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Submission Date *</label>
+          <input type="date" name="applied_date" class="form-control" value="{{ today }}" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Portal Application Reference / Job ID (Optional)</label>
+          <input type="text" name="confirmation_reference" class="form-control" placeholder="e.g. WD-2026-9481, REQ-84920">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Submission Notes (Optional)</label>
+          <textarea name="notes" class="form-control" rows="3" placeholder="e.g. Applied via Workday. Submitted resume v1 and portfolio link."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Cancel</button>
+        <button type="submit" class="btn btn-success btn-sm">Confirm & Mark as Applied</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Email Recruitment Status Synchronization & Simulator -->
+<div class="modal-overlay" id="emailSimulatorModal">
+  <div class="modal-content" style="max-width: 600px;">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Recruitment Status Auto-Sync & Email Simulator</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin: 2px 0 0;">
+          Automatically extracts recruitment status transitions from company emails.
+        </p>
+      </div>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('simulate_recruitment_email_route') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% if auth_token %}<input type="hidden" name="_st" value="{{ auth_token }}">{% endif %}
+
+      <div class="modal-body" style="font-size: 13px;">
+        <div style="background: #f8fafc; border: 1px solid var(--border-light); padding: 10px 12px; border-radius: var(--radius-sm); margin-bottom: 14px; font-size: 12px; color: var(--text-secondary);">
+          <strong>Integrated Verification:</strong> When connected to your email or receiving webhooks, Placement Track inspects emails for matching companies and authentic milestone keywords (Assessment, Shortlist, Interview, Offer, Regret). Ambiguous or marketing emails are safely ignored.
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Choose Test Simulation Template</label>
+          <select name="template_id" id="simTemplateSelect" class="form-control" onchange="loadSimulationTemplate(this)">
+            <option value="">-- Choose a pre-configured recruitment email --</option>
+            {% for tmpl in demo_email_templates %}
+              <option value="{{ tmpl.id }}" 
+                      data-sender="{{ tmpl.sender }}" 
+                      data-subject="{{ tmpl.subject }}" 
+                      data-body="{{ tmpl.body }}">
+                {{ tmpl.title }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Recruiter / Sender Email</label>
+          <input type="text" name="sender" id="simSender" class="form-control" placeholder="e.g. talent@microsoft.com">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Email Subject Line</label>
+          <input type="text" name="subject" id="simSubject" class="form-control" placeholder="e.g. Microsoft Campus Hiring: Interview Invitation">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Email Message Content *</label>
+          <textarea name="body" id="simBody" class="form-control" rows="6" required placeholder="Paste the recruitment email body or select a template above..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-modal-close>Close</button>
+        <button type="submit" class="btn btn-primary btn-sm">Process Recruitment Communication</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function populateApplyModal(btn) {
+  const companyId = btn.getAttribute('data-company-id');
+  const companyName = btn.getAttribute('data-company-name');
+  const role = btn.getAttribute('data-role');
+  
+  document.getElementById('applyModalTitle').textContent = `Apply to ${companyName}`;
+  document.getElementById('applyModalSubtitle').textContent = `Role: ${role} | Placement Track Portal`;
+  document.getElementById('applyForm').action = `/placement-hub/apply/${companyId}`;
+}
+
+function populateDriveDetailsModal(btn) {
+  const companyId = btn.getAttribute('data-company-id');
+  const companyName = btn.getAttribute('data-company-name');
+  const role = btn.getAttribute('data-role');
+  const pkg = btn.getAttribute('data-package');
+  const location = btn.getAttribute('data-location');
+  const workMode = btn.getAttribute('data-work-mode');
+  const jobType = btn.getAttribute('data-job-type');
+  const deadline = btn.getAttribute('data-deadline');
+  const eligibility = btn.getAttribute('data-eligibility');
+  const skills = btn.getAttribute('data-skills');
+  const rounds = btn.getAttribute('data-rounds');
+  const desc = btn.getAttribute('data-desc');
+  const link = btn.getAttribute('data-link');
+  const applied = btn.getAttribute('data-applied') === '1';
+  const stage = btn.getAttribute('data-stage') || 'Applied';
+
+  document.getElementById('detailCompanyName').textContent = companyName;
+  document.getElementById('detailRole').textContent = role;
+  document.getElementById('detailPackage').textContent = pkg;
+  document.getElementById('detailLocation').textContent = location;
+  document.getElementById('detailWorkMode').textContent = workMode;
+  document.getElementById('detailJobType').textContent = jobType;
+  document.getElementById('detailDeadline').textContent = deadline;
+  document.getElementById('detailEligibility').textContent = eligibility;
+  document.getElementById('detailSkills').textContent = skills;
+  document.getElementById('detailRounds').textContent = rounds;
+  document.getElementById('detailDesc').textContent = desc;
+
+  const linkEl = document.getElementById('detailLink');
+  const linkBox = document.getElementById('detailLinkBox');
+  if (link && link !== '#') {
+    linkEl.href = link;
+    linkEl.textContent = link;
+    linkBox.style.display = 'block';
+  } else {
+    linkBox.style.display = 'none';
+  }
+
+  const slot = document.getElementById('detailActionSlot');
+  if (applied) {
+    slot.innerHTML = `<a href="/placement-hub?tab=applications&search=${encodeURIComponent(companyName)}" class="btn btn-sm" style="background: #e0e7ff; color: #4338ca; font-weight: 600;">View in My Applications (${stage}) &rarr;</a>`;
+  } else {
+    slot.innerHTML = `<button type="button" class="btn btn-primary btn-sm" data-modal-close onclick="setTimeout(() => { const b = document.querySelector('[data-company-id=\\'${companyId}\\'][data-modal-target=\\'applyModal\\']'); if(b) b.click(); }, 200);">Apply for this Role &rarr;</button>`;
+  }
+}
+
+function openProgressModal(btn) {
+  const companyName = btn.getAttribute('data-company-name');
+  const role = btn.getAttribute('data-role');
+  const stage = btn.getAttribute('data-stage');
+  const ref = btn.getAttribute('data-ref');
+  const rawHist = btn.getAttribute('data-hist-json');
+  let history = [];
+  try {
+    history = JSON.parse(rawHist) || [];
+  } catch(e) {}
+
+  document.getElementById('progressModalTitle').textContent = `${companyName} — ${role}`;
+  document.getElementById('progressModalSubtitle').textContent = `Application Reference: ${ref}`;
+  document.getElementById('progressModalRef').textContent = ref;
+  
+  const badge = document.getElementById('progressModalStageBadge');
+  badge.textContent = stage;
+  badge.className = `stage-indicator stage-${stage.toLowerCase().replace(/[\s\/]/g, '-')}`;
+
+  // Build clean vertical timeline
+  const stagesOrdered = [
+    { name: 'Applied', label: '1. Application Submitted', desc: 'Application recorded via campus portal.' },
+    { name: 'Under Review', label: '2. Review & Shortlisting', desc: 'Placement Office verification of eligibility and profile.' },
+    { name: 'Assessment', label: '3. Technical & Aptitude Assessment', desc: 'Online coding, MCQs, or cognitive assessment.' },
+    { name: 'Interview', label: '4. Technical & HR Interviews', desc: 'Live technical panels, system design, and managerial rounds.' },
+    { name: 'Final Decision', label: '5. Selection Decision / Offer', desc: 'Formal campus recruitment decision released.' }
+  ];
+
+  // Determine current active step index (0 to 4)
+  let activeIndex = 0;
+  const sLow = stage.toLowerCase();
+  if (sLow.includes('offer') || sLow === 'selected' || sLow === 'rejected' || sLow === 'not selected' || sLow === 'withdrawn') {
+    activeIndex = 4;
+  } else if (sLow.includes('interview')) {
+    activeIndex = 3;
+  } else if (sLow.includes('assessment') || sLow.includes('test')) {
+    activeIndex = 2;
+  } else if (sLow.includes('shortlist') || sLow.includes('review')) {
+    activeIndex = 1;
+  } else {
+    activeIndex = 0;
+  }
+
+  let html = '<div style="position: absolute; left: 11px; top: 8px; bottom: 8px; width: 2px; background: #e2e8f0;"></div>';
+  stagesOrdered.forEach((st, idx) => {
+    let dotColor = '#cbd5e1';
+    let textColor = '#64748b';
+    let statusText = 'Pending';
+    let ring = 'none';
+
+    if (idx < activeIndex) {
+      dotColor = '#10b981';
+      textColor = '#0f172a';
+      statusText = 'Completed';
+    } else if (idx === activeIndex) {
+      if (sLow.includes('selected') || sLow.includes('offer')) {
+        dotColor = '#10b981';
+      } else if (sLow.includes('not selected') || sLow.includes('rejected')) {
+        dotColor = '#ef4444';
+      } else if (sLow.includes('withdrawn')) {
+        dotColor = '#64748b';
+      } else {
+        dotColor = '#0d9488';
+      }
+      textColor = '#0f172a';
+      statusText = `Current Stage: ${stage}`;
+      ring = '0 0 0 4px rgba(13, 148, 136, 0.2)';
+    }
+
+    html += `
+      <div style="position: relative; margin-bottom: 18px;">
+        <div style="position: absolute; left: -24px; top: 2px; width: 14px; height: 14px; border-radius: 50%; background: ${dotColor}; box-shadow: ${ring};"></div>
+        <div style="font-weight: 700; color: ${textColor}; font-size: 13px;">${st.label}</div>
+        <div style="font-size: 11px; color: ${idx === activeIndex ? '#0d9488' : 'var(--text-muted)'}; font-weight: 600;">${statusText}</div>
+        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">${st.desc}</div>
+      </div>
+    `;
+  });
+  document.getElementById('verticalTimeline').innerHTML = html;
+
+  // Render Audit Log Entries
+  let logHtml = '';
+  if (history && history.length > 0) {
+    history.forEach(h => {
+      logHtml += `
+        <div style="padding: 6px 0; border-bottom: 1px solid var(--border-light); font-size: 12px;">
+          <div style="display: flex; justify-content: space-between; color: var(--text-muted); font-size: 11px;">
+            <span><strong>${h.updated_by || 'Placement Coordinator'}</strong></span>
+            <span>${(h.created_at || '').substring(0, 19).replace('T', ' ')}</span>
+          </div>
+          <div style="font-weight: 600; color: var(--text-primary); margin: 2px 0;">
+            Status: ${h.stage}
+          </div>
+          ${h.status_note ? `<div style="color: var(--text-secondary); font-size: 12px;">${h.status_note}</div>` : ''}
+          ${h.interview_date ? `<div style="color: #b45309; font-size: 11px;">📅 Schedule: ${h.interview_date} ${h.interview_venue ? '| Venue: ' + h.interview_venue : ''}</div>` : ''}
+        </div>
+      `;
+    });
+  } else {
+    logHtml = '<div style="color: var(--text-muted); font-size: 12px; text-align: center; padding: 10px;">No status change records logged yet.</div>';
+  }
+  document.getElementById('progressAuditLog').innerHTML = logHtml;
+}
+
+function populateCoordinatorStatusModal(btn) {
+  const appId = btn.getAttribute('data-app-id');
+  const studentName = btn.getAttribute('data-student-name');
+  const companyName = btn.getAttribute('data-company-name');
+  const role = btn.getAttribute('data-role');
+  const stage = btn.getAttribute('data-stage');
+  const next = btn.getAttribute('data-next') || '';
+  const interview = btn.getAttribute('data-interview') || '';
+  const assessment = btn.getAttribute('data-assessment') || '';
+
+  document.getElementById('coordModalSubtitle').textContent = `Candidate: ${studentName} | ${companyName} (${role})`;
+  document.getElementById('coordinatorStatusForm').action = `/coordinator/applications/${appId}/status`;
+  document.getElementById('coordStageSelect').value = stage;
+  document.getElementById('coordNextStep').value = next;
+  document.getElementById('coordStatusNote').value = '';
+  document.getElementById('coordAssessmentDetails').value = assessment;
+}
+
+function populateEditCompanyModal(btn) {
+  const compId = btn.getAttribute('data-company-id');
+  document.getElementById('editCompanyForm').action = `/companies/${compId}/edit`;
+  document.getElementById('editCompName').value = btn.getAttribute('data-company-name') || '';
+  document.getElementById('editCompRole').value = btn.getAttribute('data-role') || '';
+  document.getElementById('editCompPackage').value = btn.getAttribute('data-package') || '';
+  document.getElementById('editCompLocation').value = btn.getAttribute('data-location') || '';
+  document.getElementById('editCompWorkMode').value = btn.getAttribute('data-work-mode') || 'On-site';
+  document.getElementById('editCompJobType').value = btn.getAttribute('data-job-type') || 'Full-time';
+  document.getElementById('editCompDriveDate').value = btn.getAttribute('data-drive-date') || '';
+  document.getElementById('editCompDeadline').value = btn.getAttribute('data-deadline') || '';
+  document.getElementById('editCompEligibility').value = btn.getAttribute('data-eligibility') || '';
+  document.getElementById('editCompDesc').value = btn.getAttribute('data-desc') || '';
+  document.getElementById('editCompSkills').value = btn.getAttribute('data-skills') || '';
+  document.getElementById('editCompRounds').value = btn.getAttribute('data-rounds') || '';
+  document.getElementById('editCompLink').value = btn.getAttribute('data-link') || '';
+  document.getElementById('editCompNotes').value = btn.getAttribute('data-notes') || '';
+}
+
+function populateEditAppModal(btn) {
+  const appId = btn.getAttribute('data-app-id');
+  document.getElementById('editAppForm').action = `/applications/${appId}/edit`;
+  document.getElementById('editAppCompanyName').value = btn.getAttribute('data-company-name') || '';
+  document.getElementById('editAppRole').value = btn.getAttribute('data-role') || '';
+  document.getElementById('editAppStage').value = btn.getAttribute('data-stage') || 'Applied';
+  document.getElementById('editAppDate').value = btn.getAttribute('data-date') || '';
+  document.getElementById('editAppNotes').value = btn.getAttribute('data-notes') || '';
+}
+function populateConfirmAppliedModal(btn) {
+  const appId = btn.getAttribute('data-app-id');
+  const compName = btn.getAttribute('data-company-name');
+  const role = btn.getAttribute('data-role');
+
+  document.getElementById('confirmAppliedTitle').textContent = `Confirm Applied: ${compName}`;
+  document.getElementById('confirmAppliedSubtitle').textContent = `Role: ${role} — Record external submission`;
+  document.getElementById('confirmAppliedForm').action = `/placement-hub/applications/${appId}/confirm-applied`;
+}
+
+function loadSimulationTemplate(select) {
+  const opt = select.options[select.selectedIndex];
+  if (!opt || !opt.value) return;
+
+  const sender = opt.getAttribute('data-sender') || '';
+  const subject = opt.getAttribute('data-subject') || '';
+  const body = opt.getAttribute('data-body') || '';
+
+  document.getElementById('simSender').value = sender;
+  document.getElementById('simSubject').value = subject;
+  document.getElementById('simBody').value = body;
+}
+</script>
+{% endblock %}
